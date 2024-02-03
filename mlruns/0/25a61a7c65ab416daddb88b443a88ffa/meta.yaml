@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/25a61a7c65ab416daddb88b443a88ffa/artifacts
+end_time: 1706982875811
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 25a61a7c65ab416daddb88b443a88ffa
+run_name: sincere-zebra-514
+run_uuid: 25a61a7c65ab416daddb88b443a88ffa
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706982831347
+status: 3
+tags: []
+user_id: kyle

@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/cfcb10d4d5fc4b7387861a8dec1c7d9f/artifacts
+end_time: 1706982956139
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: cfcb10d4d5fc4b7387861a8dec1c7d9f
+run_name: thoughtful-sow-312
+run_uuid: cfcb10d4d5fc4b7387861a8dec1c7d9f
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706982740314
+status: 4
+tags: []
+user_id: kyle

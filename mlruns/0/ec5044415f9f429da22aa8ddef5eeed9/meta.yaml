@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/ec5044415f9f429da22aa8ddef5eeed9/artifacts
+end_time: 1706981605718
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: ec5044415f9f429da22aa8ddef5eeed9
+run_name: receptive-bird-519
+run_uuid: ec5044415f9f429da22aa8ddef5eeed9
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706981552251
+status: 3
+tags: []
+user_id: kyle

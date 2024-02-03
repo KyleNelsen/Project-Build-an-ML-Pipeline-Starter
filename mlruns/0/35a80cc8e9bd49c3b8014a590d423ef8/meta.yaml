@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/35a80cc8e9bd49c3b8014a590d423ef8/artifacts
+end_time: 1706935742628
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 35a80cc8e9bd49c3b8014a590d423ef8
+run_name: calm-turtle-323
+run_uuid: 35a80cc8e9bd49c3b8014a590d423ef8
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706935038734
+status: 3
+tags: []
+user_id: kyle

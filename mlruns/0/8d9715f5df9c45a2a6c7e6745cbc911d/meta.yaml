@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/8d9715f5df9c45a2a6c7e6745cbc911d/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 8d9715f5df9c45a2a6c7e6745cbc911d
+run_name: smiling-seal-171
+run_uuid: 8d9715f5df9c45a2a6c7e6745cbc911d
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706932162834
+status: 1
+tags: []
+user_id: kyle

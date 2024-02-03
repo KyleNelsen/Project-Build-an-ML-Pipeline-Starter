@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/c6439ad4d31f43b8b2830d247392315f/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: c6439ad4d31f43b8b2830d247392315f
+run_name: resilient-ox-118
+run_uuid: c6439ad4d31f43b8b2830d247392315f
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706908605756
+status: 1
+tags: []
+user_id: kyle

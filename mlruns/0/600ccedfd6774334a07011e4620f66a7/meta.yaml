@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/600ccedfd6774334a07011e4620f66a7/artifacts
+end_time: 1706906571077
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 600ccedfd6774334a07011e4620f66a7
+run_name: adaptable-rook-698
+run_uuid: 600ccedfd6774334a07011e4620f66a7
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706906565170
+status: 3
+tags: []
+user_id: kyle

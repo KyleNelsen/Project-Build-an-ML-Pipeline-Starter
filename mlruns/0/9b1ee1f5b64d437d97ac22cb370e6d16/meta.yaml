@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/9b1ee1f5b64d437d97ac22cb370e6d16/artifacts
+end_time: 1706920254899
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 9b1ee1f5b64d437d97ac22cb370e6d16
+run_name: suave-shad-44
+run_uuid: 9b1ee1f5b64d437d97ac22cb370e6d16
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706920085617
+status: 3
+tags: []
+user_id: kyle

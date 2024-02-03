@@ -1,0 +1,40 @@
+2024-02-02 11:51:53,266 INFO    MainThread:1174 [wandb_setup.py:_flush():68] Configure stats pid to 1174
+2024-02-02 11:51:53,267 INFO    MainThread:1174 [wandb_setup.py:_flush():68] Loading settings from /home/kyle/.config/wandb/settings
+2024-02-02 11:51:53,267 INFO    MainThread:1174 [wandb_setup.py:_flush():68] Loading settings from /mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/src/eda/wandb/settings
+2024-02-02 11:51:53,267 INFO    MainThread:1174 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True'}
+2024-02-02 11:51:53,268 INFO    MainThread:1174 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program': '<python with no main file>'}
+2024-02-02 11:51:53,268 INFO    MainThread:1174 [wandb_init.py:_log_setup():478] Logging user logs to /mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/src/eda/wandb/run-20240202_115153-9f1r7xqk/logs/debug.log
+2024-02-02 11:51:53,270 INFO    MainThread:1174 [wandb_init.py:_log_setup():479] Logging internal logs to /mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/src/eda/wandb/run-20240202_115153-9f1r7xqk/logs/debug-internal.log
+2024-02-02 11:51:53,270 INFO    MainThread:1174 [wandb_init.py:_jupyter_setup():428] configuring jupyter hooks <wandb.sdk.wandb_init._WandbInit object at 0x7fd710454dc0>
+2024-02-02 11:51:53,270 INFO    MainThread:1174 [wandb_init.py:init():518] calling init triggers
+2024-02-02 11:51:53,271 INFO    MainThread:1174 [wandb_init.py:init():521] wandb.init called with sweep_config: {}
+config: {}
+2024-02-02 11:51:53,271 INFO    MainThread:1174 [wandb_init.py:init():571] starting backend
+2024-02-02 11:51:53,271 INFO    MainThread:1174 [wandb_init.py:init():575] setting up manager
+2024-02-02 11:51:53,276 INFO    MainThread:1174 [backend.py:_multiprocessing_setup():106] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2024-02-02 11:51:53,286 INFO    MainThread:1174 [wandb_init.py:init():582] backend started and connected
+2024-02-02 11:51:53,289 INFO    MainThread:1174 [wandb_run.py:_label_probe_notebook():1202] probe notebook
+2024-02-02 11:51:53,291 INFO    MainThread:1174 [wandb_run.py:_label_probe_notebook():1212] Unable to probe notebook: 'NoneType' object has no attribute 'get'
+2024-02-02 11:51:53,291 INFO    MainThread:1174 [wandb_init.py:init():670] updated telemetry
+2024-02-02 11:51:53,469 INFO    MainThread:1174 [wandb_init.py:init():710] communicating run to backend with 60.0 second timeout
+2024-02-02 11:51:53,913 INFO    MainThread:1174 [wandb_run.py:_on_init():2121] communicating current version
+2024-02-02 11:51:54,101 INFO    MainThread:1174 [wandb_run.py:_on_init():2125] got version response upgrade_message: "wandb version 0.16.2 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+
+2024-02-02 11:51:54,101 INFO    MainThread:1174 [wandb_init.py:init():758] starting run threads in backend
+2024-02-02 11:51:55,807 WARNING MainThread:1174 [wandb_init.py:init():1129] interrupted
+Traceback (most recent call last):
+  File "/home/kyle/miniconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages/wandb/sdk/wandb_init.py", line 1108, in init
+    run = wi.init()
+  File "/home/kyle/miniconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages/wandb/sdk/wandb_init.py", line 770, in init
+    run_start_result = run_start_handle.wait(timeout=30)
+  File "/home/kyle/miniconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages/wandb/sdk/lib/mailbox.py", line 273, in wait
+    found, abandoned = self._slot._get_and_clear(timeout=wait_timeout)
+  File "/home/kyle/miniconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages/wandb/sdk/lib/mailbox.py", line 120, in _get_and_clear
+    if self._wait(timeout=timeout):
+  File "/home/kyle/miniconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages/wandb/sdk/lib/mailbox.py", line 116, in _wait
+    return self._event.wait(timeout=timeout)
+  File "/home/kyle/miniconda3/envs/nyc_airbnb_dev/lib/python3.9/threading.py", line 581, in wait
+    signaled = self._cond.wait(timeout)
+  File "/home/kyle/miniconda3/envs/nyc_airbnb_dev/lib/python3.9/threading.py", line 316, in wait
+    gotit = waiter.acquire(True, timeout)
+KeyboardInterrupt

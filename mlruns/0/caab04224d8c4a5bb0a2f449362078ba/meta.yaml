@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/caab04224d8c4a5bb0a2f449362078ba/artifacts
+end_time: 1706910418793
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: caab04224d8c4a5bb0a2f449362078ba
+run_name: legendary-wren-590
+run_uuid: caab04224d8c4a5bb0a2f449362078ba
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706910407105
+status: 4
+tags: []
+user_id: kyle

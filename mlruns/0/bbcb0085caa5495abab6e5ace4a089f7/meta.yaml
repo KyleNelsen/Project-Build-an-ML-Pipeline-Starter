@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/bbcb0085caa5495abab6e5ace4a089f7/artifacts
+end_time: 1706908045347
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: bbcb0085caa5495abab6e5ace4a089f7
+run_name: zealous-cub-301
+run_uuid: bbcb0085caa5495abab6e5ace4a089f7
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706906717325
+status: 3
+tags: []
+user_id: kyle

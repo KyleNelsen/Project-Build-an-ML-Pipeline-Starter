@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/ce5cfc3716164a47bd4b5fa8e1838da5/artifacts
+end_time: 1706908346390
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: ce5cfc3716164a47bd4b5fa8e1838da5
+run_name: delicate-dog-356
+run_uuid: ce5cfc3716164a47bd4b5fa8e1838da5
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706908341566
+status: 4
+tags: []
+user_id: kyle

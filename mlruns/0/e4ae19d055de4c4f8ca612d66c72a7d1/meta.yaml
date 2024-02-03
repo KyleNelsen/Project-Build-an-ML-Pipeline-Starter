@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/e4ae19d055de4c4f8ca612d66c72a7d1/artifacts
+end_time: 1706851261224
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: e4ae19d055de4c4f8ca612d66c72a7d1
+run_name: calm-kit-755
+run_uuid: e4ae19d055de4c4f8ca612d66c72a7d1
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706850546377
+status: 3
+tags: []
+user_id: kyle

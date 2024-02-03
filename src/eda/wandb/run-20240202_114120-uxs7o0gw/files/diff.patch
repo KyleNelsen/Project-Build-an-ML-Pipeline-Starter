@@ -1,0 +1,2680 @@
+diff --git a/main.py b/main.py
+index 9abc5bb..76c3b0f 100644
+--- a/main.py
++++ b/main.py
+@@ -1,95 +1,127 @@
+-import json
+-
+-import mlflow
+-import tempfile
+-import os
+-import wandb
+-import hydra
+-from omegaconf import DictConfig
+-
+-_steps = [
+-    "download",
+-    "basic_cleaning",
+-    "data_check",
+-    "data_split",
+-    "train_random_forest",
+-    # NOTE: We do not include this in the steps so it is not run by mistake.
+-    # You first need to promote a model export to "prod" before you can run this,
+-    # then you need to run this step explicitly
+-#    "test_regression_model"
+-]
+-
+-
+-# This automatically reads in the configuration
+-@hydra.main(config_name='config')
+-def go(config: DictConfig):
+-
+-    # Setup the wandb experiment. All runs will be grouped under this name
+-    os.environ["WANDB_PROJECT"] = config["main"]["project_name"]
+-    os.environ["WANDB_RUN_GROUP"] = config["main"]["experiment_name"]
+-
+-    # Steps to execute
+-    steps_par = config['main']['steps']
+-    active_steps = steps_par.split(",") if steps_par != "all" else _steps
+-
+-    # Move to a temporary directory
+-    with tempfile.TemporaryDirectory() as tmp_dir:
+-
+-        if "download" in active_steps:
+-            # Download file and load in W&B
+-            _ = mlflow.run(
+-                f"{config['main']['components_repository']}/get_data",
+-                "main",
+-                parameters={
+-                    "sample": config["etl"]["sample"],
+-                    "artifact_name": "sample.csv",
+-                    "artifact_type": "raw_data",
+-                    "artifact_description": "Raw file as downloaded"
+-                },
+-            )
+-
+-        if "basic_cleaning" in active_steps:
+-            ##################
+-            # Implement here #
+-            ##################
+-            pass
+-
+-        if "data_check" in active_steps:
+-            ##################
+-            # Implement here #
+-            ##################
+-            pass
+-
+-        if "data_split" in active_steps:
+-            ##################
+-            # Implement here #
+-            ##################
+-            pass
+-
+-        if "train_random_forest" in active_steps:
+-
+-            # NOTE: we need to serialize the random forest configuration into JSON
+-            rf_config = os.path.abspath("rf_config.json")
+-            with open(rf_config, "w+") as fp:
+-                json.dump(dict(config["modeling"]["random_forest"].items()), fp)  # DO NOT TOUCH
+-
+-            # NOTE: use the rf_config we just created as the rf_config parameter for the train_random_forest
+-            # step
+-
+-            ##################
+-            # Implement here #
+-            ##################
+-
+-            pass
+-
+-        if "test_regression_model" in active_steps:
+-
+-            ##################
+-            # Implement here #
+-            ##################
+-
+-            pass
+-
+-
+-if __name__ == "__main__":
+-    go()
++import json
++
++import mlflow
++import tempfile
++import os
++import wandb
++import hydra
++from omegaconf import DictConfig
++
++_steps = [
++    "download",
++    "basic_cleaning",
++    "data_check",
++    "data_split",
++    "train_random_forest",
++    # NOTE: We do not include this in the steps so it is not run by mistake.
++    # You first need to promote a model export to "prod" before you can run this,
++    # then you need to run this step explicitly
++#    "test_regression_model"
++]
++
++
++# This automatically reads in the configuration
++@hydra.main(config_name='config')
++def go(config: DictConfig):
++
++    # Setup the wandb experiment. All runs will be grouped under this name
++    os.environ["WANDB_PROJECT"] = config["main"]["project_name"]
++    os.environ["WANDB_RUN_GROUP"] = config["main"]["experiment_name"]
++
++    # Steps to execute
++    steps_par = config['main']['steps']
++    active_steps = steps_par.split(",") if steps_par != "all" else _steps
++
++    # Move to a temporary directory
++    with tempfile.TemporaryDirectory() as tmp_dir:
++
++        if "download" in active_steps:
++            # Download file and load in W&B
++            _ = mlflow.run(
++                f"{config['main']['components_repository']}/get_data",
++                "main",
++                parameters={
++                    "sample": config["etl"]["sample"],
++                    "artifact_name": "sample.csv",
++                    "artifact_type": "raw_data",
++                    "artifact_description": "Raw file as downloaded"
++                },
++            )
++
++        if "basic_cleaning" in active_steps:
++            _ = mlflow.run(
++                os.path.join(hydra.utils.get_original_cwd(), "src", "basic_cleaning"),
++                "main",
++                parameters={
++                    "input_artifact": "sample.csv:latest",
++                    "output_artifact": "clean_sample.csv",
++                    "output_type": "clean_sample",
++                    "output_description": "Data with outliers and null values removed",
++                    "min_price": config['etl']['min_price'],
++                    "max_price": config['etl']['max_price']
++                },
++           )
++
++        if "data_check" in active_steps:
++            _ = mlflow.run(
++                os.path.join(hydra.utils.get_original_cwd(), "src", "data_check"),
++                "main",
++                parameters={
++                    "csv": "clean_sample.csv:latest",
++                    "ref": "clean_sample.csv:reference",
++                    "kl_threshold": config["data_check"]["kl_threshold"],
++                    "min_price": config['etl']['min_price'],
++                    "max_price": config['etl']['max_price']
++                },
++            )
++
++        if "data_split" in active_steps:
++            _ = mlflow.run(
++                f"{config['main']['components_repository']}/train_val_test_split",
++                "main",
++                parameters={
++                    "input": "clean_sample.csv:latest",
++                    "test_size": config["modeling"]["test_size"],
++                    "random_seed": config["modeling"]["random_seed"],
++                    "stratify_by": config["modeling"]["stratify_by"]
++                },
++            )
++
++        if "train_random_forest" in active_steps:
++
++            # NOTE: we need to serialize the random forest configuration into JSON
++            rf_config = os.path.abspath("rf_config.json")
++            with open(rf_config, "w+") as fp:
++                json.dump(dict(config["modeling"]["random_forest"].items()), fp)  # DO NOT TOUCH
++
++            # NOTE: use the rf_config we just created as the rf_config parameter for the train_random_forest
++            # step
++
++            _ =mlflow.run(
++               os.path.join(root,"src","train_random_forest"),
++                "main",
++                parameters={
++                    "trainval_artifact": "trainval_data.csv:latest",
++                    "val_size": str(config['modeling']['val_size']),
++                    "random_seed": str(config['modeling']['random_seed']),
++                    "stratify_by": config['modeling']['stratify_by'],
++                    "rf_config": rf_config,
++                    "max_tfidf_features": str(config['modeling']['max_tfidf_features']),
++                    "output_artifact": "random_forest_export"
++                },
++            )
++
++        if "test_regression_model" in active_steps:
++
++            _ =mlflow.run(
++               os.path.join(root, "components", "test_regression_model"),
++                "main",
++                parameters={
++                    "mlflow_model": "random_forest_export:prod",
++                    "test_dataset": "test_data.csv:latest"
++                },
++            )
++
++
++if __name__ == "__main__":
++    go()
+diff --git a/src/basic_cleaning/MLproject b/src/basic_cleaning/MLproject
+index 7bd69e1..70eadc2 100644
+--- a/src/basic_cleaning/MLproject
++++ b/src/basic_cleaning/MLproject
+@@ -1,34 +1,34 @@
+-name: basic_cleaning
+-conda_env: conda.yml
+-
+-entry_points:
+-  main:
+-    parameters:
+-
+-      input_artifact:
+-        description: Ininital artifact to be cleaned
+-        type: string
+-
+-      output_artifact:
+-        description: Output artifact for cleaned data
+-        type: string
+-
+-      output_type:
+-        description: Type of the output dataset
+-        type: string
+-
+-      output_description:
+-        description: Description of the output dataset
+-        type: string
+-
+-      min_price:
+-        description: Minumim house price to be considered
+-        type: float
+-
+-      max_price:
+-        description: Maximum house price to be considered
+-        type: float
+-
+-
+-    command: >-
+-        python run.py  --input_artifact {input_artifact}  --output_artifact {output_artifact}  --output_type {output_type}  --output_description {output_description}  --min_price {min_price}  --max_price {max_price} 
++name: basic_cleaning
++conda_env: conda.yml
++
++entry_points:
++  main:
++    parameters:
++
++      input_artifact:
++        description: Ininital artifact to be cleaned
++        type: string
++
++      output_artifact:
++        description: Output artifact for cleaned data
++        type: string
++
++      output_type:
++        description: Type of the output dataset
++        type: string
++
++      output_description:
++        description: Description of the output dataset
++        type: string
++
++      min_price:
++        description: Minumim house price to be considered
++        type: float
++
++      max_price:
++        description: Maximum house price to be considered
++        type: float
++
++
++    command: >-
++        python run.py  --input_artifact {input_artifact}  --output_artifact {output_artifact}  --output_type {output_type}  --output_description {output_description}  --min_price {min_price}  --max_price {max_price} 
+diff --git a/src/basic_cleaning/conda.yml b/src/basic_cleaning/conda.yml
+index f35e98c..44ac9a7 100644
+--- a/src/basic_cleaning/conda.yml
++++ b/src/basic_cleaning/conda.yml
+@@ -1,9 +1,9 @@
+-name: basic_cleaning
+-channels:
+-  - conda-forge
+-  - defaults
+-dependencies:
+-  - pip=20.3.3
+-  - pandas=1.2.3
+-  - pip:
+-      - wandb==0.13.9
++name: basic_cleaning
++channels:
++  - conda-forge
++  - defaults
++dependencies:
++  - pip=20.3.3
++  - pandas=1.2.3
++  - pip:
++      - wandb==0.13.9
+diff --git a/src/basic_cleaning/run.py b/src/basic_cleaning/run.py
+index b496452..4aacf90 100644
+--- a/src/basic_cleaning/run.py
++++ b/src/basic_cleaning/run.py
+@@ -1,100 +1,101 @@
+-#!/usr/bin/env python
+-"""
+-Download from W&B the raw dataset and apply some basic data cleaning, exporting the result to a new artifact
+-"""
+-import argparse
+-import logging
+-import wandb
+-import pandas as pd
+-
+-# DO NOT MODIFY
+-logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
+-logger = logging.getLogger()
+-
+-# DO NOT MODIFY
+-def go(args):
+-    
+-    logger.info('Starting wandb run.')
+-    run = wandb.init(
+-        project = 'nyc_airbnb',
+-        group = 'basic_cleaning',
+-        job_type="basic_cleaning" 
+-    )
+-    run.config.update(args)
+-    # Download input artifact. This will also log that this script is using this
+-    # particular version of the artifact
+-    logger.info('Fetching raw dataset.')
+-    local_path = wandb.use_artifact('sample.csv:latest').file()
+-    df = pd.read_csv(local_path)
+-    
+-    # EDA with arguments passed into the step
+-    logger.info('Cleaning data.')
+-    idx = df['price'].between(float(args.min_price), float(args.max_price))
+-    df = df[idx].copy()
+-    df['last_review'] = pd.to_datetime(df['last_review'])
+-    # TODO: add code to fix the issue happened when testing the model
+-    
+-
+-    # Save the cleaned data
+-    logger.info('Saving and exporting cleaned data.')
+-    df.to_csv('clean_sample.csv', index=False)
+-    artifact = wandb.Artifact(
+-        args.output_artifact,
+-        type = args.output_type,
+-        description = args.output_description
+-    )
+-    artifact.add_file('clean_sample.csv')
+-    run.log_artifact(artifact)
+-    
+-# TODO: In the code below, fill in the data type for each argumemt. The data type should be str, float or int. 
+-# TODO: In the code below, fill in a description for each argument. The description should be a string.
+-if __name__ == "__main__":
+-
+-    parser = argparse.ArgumentParser(description="A very basic data cleaning")
+-  
+-    parser.add_argument(
+-        "--input_artifact", 
+-        type = ## INSERT TYPE HERE: str, float or int,
+-        help = ## INSERT DESCRIPTION HERE,
+-        required = True
+-    )
+-
+-    parser.add_argument(
+-        "--output_artifact", 
+-        type = ## INSERT TYPE HERE: str, float or int,
+-        help = ## INSERT DESCRIPTION HERE,
+-        required = True
+-    )
+-
+-    parser.add_argument(
+-        "--output_type", 
+-        type = ## INSERT TYPE HERE: str, float or int,
+-        help = ## INSERT DESCRIPTION HERE,
+-        required = True
+-    )
+-
+-    parser.add_argument(
+-        "--output_description", 
+-        type = ## INSERT TYPE HERE: str, float or int,
+-        help = ## INSERT DESCRIPTION HERE,
+-        required = True
+-    )
+-
+-    parser.add_argument(
+-        "--min_price", 
+-        type = ## INSERT TYPE HERE: str, float or int,
+-        help = ## INSERT DESCRIPTION HERE,
+-        required = True
+-    )
+-
+-    parser.add_argument(
+-        "--max_price",
+-        type = ## INSERT TYPE HERE: str, float or int,
+-        help = ## INSERT DESCRIPTION HERE,
+-        required = True
+-    )
+-
+-
+-    args = parser.parse_args()
+-
+-    go(args)
++#!/usr/bin/env python
++"""
++Download from W&B the raw dataset and apply some basic data cleaning, exporting the result to a new artifact
++"""
++import argparse
++import logging
++import wandb
++import pandas as pd
++
++# DO NOT MODIFY
++logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
++logger = logging.getLogger()
++
++# DO NOT MODIFY
++def go(args):
++    
++    logger.info('Starting wandb run.')
++    run = wandb.init(
++        project = 'nyc_airbnb',
++        group = 'basic_cleaning',
++        job_type="basic_cleaning" 
++    )
++    run.config.update(args)
++    # Download input artifact. This will also log that this script is using this
++    # particular version of the artifact
++    logger.info('Fetching raw dataset.')
++    local_path = wandb.use_artifact('sample.csv:latest').file()
++    df = pd.read_csv(local_path)
++    
++    # EDA with arguments passed into the step
++    logger.info('Cleaning data.')
++    idx = df['price'].between(float(args.min_price), float(args.max_price))
++    df = df[idx].copy()
++    df['last_review'] = pd.to_datetime(df['last_review'])
++    # TODO: add code to fix the issue happened when testing the model
++    idx = df['longitude'].between(-74.25, -73.50) & df['latitude'].between(40.5, 41.2)
++    df = df[idx].copy()
++
++    # Save the cleaned data
++    logger.info('Saving and exporting cleaned data.')
++    df.to_csv('clean_sample.csv', index=False)
++    artifact = wandb.Artifact(
++        args.output_artifact,
++        type = args.output_type,
++        description = args.output_description
++    )
++    artifact.add_file('clean_sample.csv')
++    run.log_artifact(artifact)
++    
++# TODO: In the code below, fill in the data type for each argumemt. The data type should be str, float or int. 
++# TODO: In the code below, fill in a description for each argument. The description should be a string.
++if __name__ == "__main__":
++
++    parser = argparse.ArgumentParser(description="A very basic data cleaning")
++  
++    parser.add_argument(
++        "--input_artifact", 
++        type = str,
++        help = "Name of the input artifact",
++        required = True
++    )
++
++    parser.add_argument(
++        "--output_artifact", 
++        type = str,
++        help = "Name of the output artifact",
++        required = True
++    )
++
++    parser.add_argument(
++        "--output_type", 
++        type = str,
++        help = "Type of the output artifact",
++        required = True
++    )
++
++    parser.add_argument(
++        "--output_description", 
++        type = str,
++        help = "Description of the output artifact",
++        required = True
++    )
++
++    parser.add_argument(
++        "--min_price", 
++        type = float,
++        help = "Minimum Price",
++        required = True
++    )
++
++    parser.add_argument(
++        "--max_price",
++        type = float,
++        help = "Maximum Price",
++        required = True
++    )
++
++
++    args = parser.parse_args()
++
++    go(args)
+diff --git a/src/data_check/MLproject b/src/data_check/MLproject
+index 8874479..7123c05 100644
+--- a/src/data_check/MLproject
++++ b/src/data_check/MLproject
+@@ -1,28 +1,28 @@
+-name: data_check
+-conda_env: conda.yml
+-
+-entry_points:
+-  main:
+-    parameters:
+-
+-      csv:
+-        description: Input CSV file to be tested
+-        type: string
+-
+-      ref:
+-        description: Reference CSV file to compare the new csv to
+-        type: string
+-
+-      kl_threshold:
+-        description: Threshold for the KL divergence test on the neighborhood group column
+-        type: float
+-
+-      min_price:
+-        description: Minimum accepted price
+-        type: float
+-
+-      max_price:
+-        description: Maximum accepted price
+-        type: float
+-
+-    command: "pytest . -vv --csv {csv} --ref {ref} --kl_threshold {kl_threshold} --min_price {min_price} --max_price {max_price}"
++name: data_check
++conda_env: conda.yml
++
++entry_points:
++  main:
++    parameters:
++
++      csv:
++        description: Input CSV file to be tested
++        type: string
++
++      ref:
++        description: Reference CSV file to compare the new csv to
++        type: string
++
++      kl_threshold:
++        description: Threshold for the KL divergence test on the neighborhood group column
++        type: float
++
++      min_price:
++        description: Minimum accepted price
++        type: float
++
++      max_price:
++        description: Maximum accepted price
++        type: float
++
++    command: "pytest . -vv --csv {csv} --ref {ref} --kl_threshold {kl_threshold} --min_price {min_price} --max_price {max_price}"
+diff --git a/src/data_check/conda.yml b/src/data_check/conda.yml
+index aa581fb..196b3a0 100644
+--- a/src/data_check/conda.yml
++++ b/src/data_check/conda.yml
+@@ -1,11 +1,11 @@
+-name: data_check
+-channels:
+-  - conda-forge
+-  - defaults
+-dependencies:
+-  - pandas=1.1.4
+-  - pytest=6.2.2
+-  - scipy=1.5.2
+-  - pip=20.3.3
+-  - pip:
+-      - wandb==0.13.9
++name: data_check
++channels:
++  - conda-forge
++  - defaults
++dependencies:
++  - pandas=1.1.4
++  - pytest=6.2.2
++  - scipy=1.5.2
++  - pip=20.3.3
++  - pip:
++      - wandb==0.13.9
+diff --git a/src/data_check/conftest.py b/src/data_check/conftest.py
+index b000a45..a937a51 100644
+--- a/src/data_check/conftest.py
++++ b/src/data_check/conftest.py
+@@ -1,71 +1,71 @@
+-import pytest
+-import pandas as pd
+-import wandb
+-
+-
+-def pytest_addoption(parser):
+-    parser.addoption("--csv", action="store")
+-    parser.addoption("--ref", action="store")
+-    parser.addoption("--kl_threshold", action="store")
+-    parser.addoption("--min_price", action="store")
+-    parser.addoption("--max_price", action="store")
+-
+-
+-@pytest.fixture(scope='session')
+-def data(request):
+-    run = wandb.init(job_type="data_tests", resume=True)
+-
+-    # Download input artifact. This will also note that this script is using this
+-    # particular version of the artifact
+-    data_path = run.use_artifact(request.config.option.csv).file()
+-
+-    if data_path is None:
+-        pytest.fail("You must provide the --csv option on the command line")
+-
+-    df = pd.read_csv(data_path)
+-
+-    return df
+-
+-
+-@pytest.fixture(scope='session')
+-def ref_data(request):
+-    run = wandb.init(job_type="data_tests", resume=True)
+-
+-    # Download input artifact. This will also note that this script is using this
+-    # particular version of the artifact
+-    data_path = run.use_artifact(request.config.option.ref).file()
+-
+-    if data_path is None:
+-        pytest.fail("You must provide the --ref option on the command line")
+-
+-    df = pd.read_csv(data_path)
+-
+-    return df
+-
+-
+-@pytest.fixture(scope='session')
+-def kl_threshold(request):
+-    kl_threshold = request.config.option.kl_threshold
+-
+-    if kl_threshold is None:
+-        pytest.fail("You must provide a threshold for the KL test")
+-
+-    return float(kl_threshold)
+-
+-@pytest.fixture(scope='session')
+-def min_price(request):
+-    min_price = request.config.option.min_price
+-
+-    if min_price is None:
+-        pytest.fail("You must provide min_price")
+-
+-    return float(min_price)
+-
+-@pytest.fixture(scope='session')
+-def max_price(request):
+-    max_price = request.config.option.max_price
+-
+-    if max_price is None:
+-        pytest.fail("You must provide max_price")
+-
+-    return float(max_price)
++import pytest
++import pandas as pd
++import wandb
++
++
++def pytest_addoption(parser):
++    parser.addoption("--csv", action="store")
++    parser.addoption("--ref", action="store")
++    parser.addoption("--kl_threshold", action="store")
++    parser.addoption("--min_price", action="store")
++    parser.addoption("--max_price", action="store")
++
++
++@pytest.fixture(scope='session')
++def data(request):
++    run = wandb.init(job_type="data_tests", resume=True)
++
++    # Download input artifact. This will also note that this script is using this
++    # particular version of the artifact
++    data_path = run.use_artifact(request.config.option.csv).file()
++
++    if data_path is None:
++        pytest.fail("You must provide the --csv option on the command line")
++
++    df = pd.read_csv(data_path)
++
++    return df
++
++
++@pytest.fixture(scope='session')
++def ref_data(request):
++    run = wandb.init(job_type="data_tests", resume=True)
++
++    # Download input artifact. This will also note that this script is using this
++    # particular version of the artifact
++    data_path = run.use_artifact(request.config.option.ref).file()
++
++    if data_path is None:
++        pytest.fail("You must provide the --ref option on the command line")
++
++    df = pd.read_csv(data_path)
++
++    return df
++
++
++@pytest.fixture(scope='session')
++def kl_threshold(request):
++    kl_threshold = request.config.option.kl_threshold
++
++    if kl_threshold is None:
++        pytest.fail("You must provide a threshold for the KL test")
++
++    return float(kl_threshold)
++
++@pytest.fixture(scope='session')
++def min_price(request):
++    min_price = request.config.option.min_price
++
++    if min_price is None:
++        pytest.fail("You must provide min_price")
++
++    return float(min_price)
++
++@pytest.fixture(scope='session')
++def max_price(request):
++    max_price = request.config.option.max_price
++
++    if max_price is None:
++        pytest.fail("You must provide max_price")
++
++    return float(max_price)
+diff --git a/src/data_check/test_data.py b/src/data_check/test_data.py
+index 6ed3ec6..b52677f 100644
+--- a/src/data_check/test_data.py
++++ b/src/data_check/test_data.py
+@@ -1,65 +1,71 @@
+-import pandas as pd
+-import numpy as np
+-import scipy.stats
+-
+-
+-def test_column_names(data):
+-
+-    expected_colums = [
+-        "id",
+-        "name",
+-        "host_id",
+-        "host_name",
+-        "neighbourhood_group",
+-        "neighbourhood",
+-        "latitude",
+-        "longitude",
+-        "room_type",
+-        "price",
+-        "minimum_nights",
+-        "number_of_reviews",
+-        "last_review",
+-        "reviews_per_month",
+-        "calculated_host_listings_count",
+-        "availability_365",
+-    ]
+-
+-    these_columns = data.columns.values
+-
+-    # This also enforces the same order
+-    assert list(expected_colums) == list(these_columns)
+-
+-
+-def test_neighborhood_names(data):
+-
+-    known_names = ["Bronx", "Brooklyn", "Manhattan", "Queens", "Staten Island"]
+-
+-    neigh = set(data['neighbourhood_group'].unique())
+-
+-    # Unordered check
+-    assert set(known_names) == set(neigh)
+-
+-
+-def test_proper_boundaries(data: pd.DataFrame):
+-    """
+-    Test proper longitude and latitude boundaries for properties in and around NYC
+-    """
+-    idx = data['longitude'].between(-74.25, -73.50) & data['latitude'].between(40.5, 41.2)
+-
+-    assert np.sum(~idx) == 0
+-
+-
+-def test_similar_neigh_distrib(data: pd.DataFrame, ref_data: pd.DataFrame, kl_threshold: float):
+-    """
+-    Apply a threshold on the KL divergence to detect if the distribution of the new data is
+-    significantly different than that of the reference dataset
+-    """
+-    dist1 = data['neighbourhood_group'].value_counts().sort_index()
+-    dist2 = ref_data['neighbourhood_group'].value_counts().sort_index()
+-
+-    assert scipy.stats.entropy(dist1, dist2, base=2) < kl_threshold
+-
+-
+-########################################################
+-# Implement here test_row_count and test_price_range   #
+-########################################################
++import pandas as pd
++import numpy as np
++import scipy.stats
++
++
++def test_column_names(data):
++
++    expected_colums = [
++        "id",
++        "name",
++        "host_id",
++        "host_name",
++        "neighbourhood_group",
++        "neighbourhood",
++        "latitude",
++        "longitude",
++        "room_type",
++        "price",
++        "minimum_nights",
++        "number_of_reviews",
++        "last_review",
++        "reviews_per_month",
++        "calculated_host_listings_count",
++        "availability_365",
++    ]
++
++    these_columns = data.columns.values
++
++    # This also enforces the same order
++    assert list(expected_colums) == list(these_columns)
++
++
++def test_neighborhood_names(data):
++
++    known_names = ["Bronx", "Brooklyn", "Manhattan", "Queens", "Staten Island"]
++
++    neigh = set(data['neighbourhood_group'].unique())
++
++    # Unordered check
++    assert set(known_names) == set(neigh)
++
++
++def test_proper_boundaries(data: pd.DataFrame):
++    """
++    Test proper longitude and latitude boundaries for properties in and around NYC
++    """
++    idx = data['longitude'].between(-74.25, -73.50) & data['latitude'].between(40.5, 41.2)
++
++    assert np.sum(~idx) == 0
++
++
++def test_similar_neigh_distrib(data: pd.DataFrame, ref_data: pd.DataFrame, kl_threshold: float):
++    """
++    Apply a threshold on the KL divergence to detect if the distribution of the new data is
++    significantly different than that of the reference dataset
++    """
++    dist1 = data['neighbourhood_group'].value_counts().sort_index()
++    dist2 = ref_data['neighbourhood_group'].value_counts().sort_index()
++
++    assert scipy.stats.entropy(dist1, dist2, base=2) < kl_threshold
++
++
++########################################################
++# Implement here test_row_count and test_price_range   #
++########################################################
++def test_row_count(data: pd.DataFrame):
++    assert 15000 < data.shape[0] < 1000000
++
++
++def test_price_range(data, min_price, max_price):
++    assert data['price'].between(min_price, max_price).all()
+\ No newline at end of file
+diff --git a/src/eda/eda.ipynb b/src/eda/eda.ipynb
+index 06abc38..9489788 100644
+--- a/src/eda/eda.ipynb
++++ b/src/eda/eda.ipynb
+@@ -2,8 +2,8 @@
+  "cells": [
+   {
+    "cell_type": "code",
+-   "execution_count": 6,
+-   "id": "1f72a955",
++   "execution_count": 1,
++   "id": "b96b01c3",
+    "metadata": {
+     "scrolled": true,
+     "tags": []
+@@ -13,72 +13,139 @@
+      "name": "stdout",
+      "output_type": "stream",
+      "text": [
+-      "Requirement already satisfied: wandb==0.13.9 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (0.13.9)\n",
+-      "Requirement already satisfied: setproctitle in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (1.3.2)\n",
+-      "Requirement already satisfied: protobuf!=4.21.0,<5,>=3.19.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (4.21.12)\n",
+-      "Requirement already satisfied: docker-pycreds>=0.4.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (0.4.0)\n",
+-      "Requirement already satisfied: setuptools in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (59.8.0)\n",
+-      "Requirement already satisfied: pathtools in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (0.1.2)\n",
+-      "Requirement already satisfied: Click!=8.0.0,>=7.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (8.1.3)\n",
+-      "Requirement already satisfied: GitPython>=1.0.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (3.1.31)\n",
+-      "Requirement already satisfied: appdirs>=1.4.3 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (1.4.4)\n",
+-      "Requirement already satisfied: requests<3,>=2.0.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (2.28.2)\n",
+-      "Requirement already satisfied: typing-extensions in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (4.5.0)\n",
+-      "Requirement already satisfied: PyYAML in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (6.0)\n",
+-      "Requirement already satisfied: sentry-sdk>=1.0.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (1.19.1)\n",
+-      "Requirement already satisfied: psutil>=5.0.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from wandb==0.13.9) (5.9.4)\n",
+-      "Requirement already satisfied: six>=1.4.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from docker-pycreds>=0.4.0->wandb==0.13.9) (1.16.0)\n",
+-      "Requirement already satisfied: gitdb<5,>=4.0.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from GitPython>=1.0.0->wandb==0.13.9) (4.0.10)\n",
+-      "Requirement already satisfied: smmap<6,>=3.0.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from gitdb<5,>=4.0.1->GitPython>=1.0.0->wandb==0.13.9) (3.0.5)\n",
+-      "Requirement already satisfied: idna<4,>=2.5 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (3.4)\n",
+-      "Requirement already satisfied: urllib3<1.27,>=1.21.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (1.26.15)\n",
+-      "Requirement already satisfied: charset-normalizer<4,>=2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (3.1.0)\n",
+-      "Requirement already satisfied: certifi>=2017.4.17 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (2022.12.7)\n",
+-      "Requirement already satisfied: pandas-profiling==3.6.2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (3.6.2)\n",
+-      "Requirement already satisfied: multimethod<1.10,>=1.4 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (1.9.1)\n",
+-      "Requirement already satisfied: jinja2<3.2,>=2.11.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (2.11.3)\n",
+-      "Requirement already satisfied: matplotlib<3.7,>=3.2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (3.6.2)\n",
+-      "Requirement already satisfied: scipy<1.10,>=1.4.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (1.9.3)\n",
+-      "Requirement already satisfied: htmlmin==0.1.12 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (0.1.12)\n",
+-      "Requirement already satisfied: requests<2.29,>=2.24.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (2.28.2)\n",
+-      "Requirement already satisfied: numpy<1.24,>=1.16.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (1.23.5)\n",
+-      "Requirement already satisfied: seaborn<0.13,>=0.10.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (0.11.1)\n",
+-      "Requirement already satisfied: statsmodels<0.14,>=0.13.2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (0.13.5)\n",
+-      "Requirement already satisfied: pydantic<1.11,>=1.8.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (1.10.7)\n",
+-      "Requirement already satisfied: pandas!=1.4.0,<1.6,>1.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (1.2.3)\n",
+-      "Requirement already satisfied: phik<0.13,>=0.11.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (0.12.3)\n",
+-      "Requirement already satisfied: typeguard<2.14,>=2.13.2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (2.13.3)\n",
+-      "Requirement already satisfied: PyYAML<6.1,>=5.0.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (6.0)\n",
+-      "Requirement already satisfied: visions[type_image_path]==0.7.5 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (0.7.5)\n",
+-      "Requirement already satisfied: tqdm<4.65,>=4.48.2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas-profiling==3.6.2) (4.64.1)\n",
+-      "Requirement already satisfied: attrs>=19.3.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (22.2.0)\n",
+-      "Requirement already satisfied: networkx>=2.4 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (3.1)\n",
+-      "Requirement already satisfied: tangled-up-in-unicode>=0.0.4 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (0.2.0)\n",
+-      "Requirement already satisfied: Pillow in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (9.5.0)\n",
+-      "Requirement already satisfied: imagehash in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (4.3.1)\n",
+-      "Requirement already satisfied: MarkupSafe>=0.23 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from jinja2<3.2,>=2.11.1->pandas-profiling==3.6.2) (1.1.1)\n",
+-      "Requirement already satisfied: pyparsing>=2.2.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (3.0.9)\n",
+-      "Requirement already satisfied: python-dateutil>=2.7 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (2.8.2)\n",
+-      "Requirement already satisfied: contourpy>=1.0.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (1.0.7)\n",
+-      "Requirement already satisfied: packaging>=20.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (22.0)\n",
+-      "Requirement already satisfied: kiwisolver>=1.0.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (1.4.4)\n",
+-      "Requirement already satisfied: fonttools>=4.22.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (4.39.3)\n",
+-      "Requirement already satisfied: cycler>=0.10 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (0.11.0)\n",
+-      "Requirement already satisfied: pytz>=2017.3 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas!=1.4.0,<1.6,>1.1->pandas-profiling==3.6.2) (2022.7.1)\n",
+-      "Requirement already satisfied: joblib>=0.14.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from phik<0.13,>=0.11.1->pandas-profiling==3.6.2) (1.2.0)\n",
+-      "Requirement already satisfied: typing-extensions>=4.2.0 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pydantic<1.11,>=1.8.1->pandas-profiling==3.6.2) (4.5.0)\n",
+-      "Requirement already satisfied: six>=1.5 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from python-dateutil>=2.7->matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (1.16.0)\n",
+-      "Requirement already satisfied: certifi>=2017.4.17 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<2.29,>=2.24.0->pandas-profiling==3.6.2) (2022.12.7)\n",
+-      "Requirement already satisfied: urllib3<1.27,>=1.21.1 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<2.29,>=2.24.0->pandas-profiling==3.6.2) (1.26.15)\n",
+-      "Requirement already satisfied: charset-normalizer<4,>=2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<2.29,>=2.24.0->pandas-profiling==3.6.2) (3.1.0)\n",
+-      "Requirement already satisfied: idna<4,>=2.5 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from requests<2.29,>=2.24.0->pandas-profiling==3.6.2) (3.4)\n",
+-      "Requirement already satisfied: patsy>=0.5.2 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from statsmodels<0.14,>=0.13.2->pandas-profiling==3.6.2) (0.5.3)\n",
+-      "Requirement already satisfied: PyWavelets in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from imagehash->visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (1.4.1)\n",
+-      "Requirement already satisfied: pandas==1.2.3 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (1.2.3)\n",
+-      "Requirement already satisfied: python-dateutil>=2.7.3 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas==1.2.3) (2.8.2)\n",
+-      "Requirement already satisfied: pytz>=2017.3 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas==1.2.3) (2022.7.1)\n",
+-      "Requirement already satisfied: numpy>=1.16.5 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from pandas==1.2.3) (1.23.5)\n",
+-      "Requirement already satisfied: six>=1.5 in /opt/anaconda3/envs/nyc_airbnb_dev/lib/python3.9/site-packages (from python-dateutil>=2.7.3->pandas==1.2.3) (1.16.0)\n"
++      "Requirement already satisfied: wandb==0.13.9 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (0.13.9)\n",
++      "Requirement already satisfied: Click!=8.0.0,>=7.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (8.1.7)\n",
++      "Requirement already satisfied: sentry-sdk>=1.0.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (1.39.2)\n",
++      "Requirement already satisfied: PyYAML in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (6.0.1)\n",
++      "Requirement already satisfied: appdirs>=1.4.3 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (1.4.4)\n",
++      "Requirement already satisfied: psutil>=5.0.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (5.9.8)\n",
++      "Requirement already satisfied: pathtools in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (0.1.2)\n",
++      "Requirement already satisfied: docker-pycreds>=0.4.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (0.4.0)\n",
++      "Requirement already satisfied: setuptools in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (59.8.0)\n",
++      "Requirement already satisfied: requests<3,>=2.0.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (2.31.0)\n",
++      "Requirement already satisfied: GitPython>=1.0.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (3.1.41)\n",
++      "Requirement already satisfied: protobuf!=4.21.0,<5,>=3.19.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (4.25.1)\n",
++      "Requirement already satisfied: setproctitle in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (1.3.3)\n",
++      "Requirement already satisfied: typing-extensions in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from wandb==0.13.9) (4.9.0)\n",
++      "Requirement already satisfied: colorama in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from Click!=8.0.0,>=7.0->wandb==0.13.9) (0.4.6)\n",
++      "Requirement already satisfied: six>=1.4.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from docker-pycreds>=0.4.0->wandb==0.13.9) (1.16.0)\n",
++      "Requirement already satisfied: gitdb<5,>=4.0.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from GitPython>=1.0.0->wandb==0.13.9) (4.0.11)\n",
++      "Requirement already satisfied: smmap<6,>=3.0.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from gitdb<5,>=4.0.1->GitPython>=1.0.0->wandb==0.13.9) (5.0.0)\n",
++      "Requirement already satisfied: idna<4,>=2.5 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (3.6)\n",
++      "Requirement already satisfied: certifi>=2017.4.17 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (2023.11.17)\n",
++      "Requirement already satisfied: charset-normalizer<4,>=2 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (3.3.2)\n",
++      "Requirement already satisfied: urllib3<3,>=1.21.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from requests<3,>=2.0.0->wandb==0.13.9) (2.1.0)\n",
++      "Collecting pandas-profiling==3.6.2\n",
++      "  Using cached pandas_profiling-3.6.2-py2.py3-none-any.whl (328 kB)\n",
++      "Requirement already satisfied: PyYAML<6.1,>=5.0.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas-profiling==3.6.2) (6.0.1)\n",
++      "Requirement already satisfied: matplotlib<3.7,>=3.2 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas-profiling==3.6.2) (3.6.2)\n",
++      "Requirement already satisfied: jinja2<3.2,>=2.11.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas-profiling==3.6.2) (3.1.3)\n",
++      "Requirement already satisfied: pandas!=1.4.0,<1.6,>1.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas-profiling==3.6.2) (1.2.2)\n",
++      "Collecting htmlmin==0.1.12\n",
++      "  Using cached htmlmin-0.1.12.tar.gz (19 kB)\n",
++      "Collecting visions[type_image_path]==0.7.5\n",
++      "  Using cached visions-0.7.5-py3-none-any.whl (102 kB)\n",
++      "Requirement already satisfied: attrs>=19.3.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (23.2.0)\n",
++      "Requirement already satisfied: Pillow in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from visions[type_image_path]==0.7.5->pandas-profiling==3.6.2) (10.2.0)\n",
++      "Requirement already satisfied: MarkupSafe>=2.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from jinja2<3.2,>=2.11.1->pandas-profiling==3.6.2) (2.1.4)\n",
++      "Requirement already satisfied: cycler>=0.10 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (0.12.1)\n",
++      "Requirement already satisfied: kiwisolver>=1.0.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (1.4.5)\n",
++      "Requirement already satisfied: pyparsing>=2.2.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (3.1.1)\n",
++      "Requirement already satisfied: contourpy>=1.0.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (1.1.1)\n",
++      "Requirement already satisfied: packaging>=20.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (23.2)\n",
++      "Requirement already satisfied: fonttools>=4.22.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (4.47.2)\n",
++      "Requirement already satisfied: python-dateutil>=2.7 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (2.8.2)\n",
++      "Collecting multimethod<1.10,>=1.4\n",
++      "  Downloading multimethod-1.9.1-py3-none-any.whl (10 kB)\n",
++      "Collecting networkx>=2.4\n",
++      "  Downloading networkx-3.1-py3-none-any.whl (2.1 MB)\n",
++      "Collecting numpy<1.24,>=1.16.0\n",
++      "  Downloading numpy-1.23.5-cp38-cp38-win_amd64.whl (14.7 MB)\n",
++      "Requirement already satisfied: pytz>=2017.3 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas!=1.4.0,<1.6,>1.1->pandas-profiling==3.6.2) (2023.3.post1)\n",
++      "Collecting phik<0.13,>=0.11.1\n",
++      "  Downloading phik-0.12.4-cp38-cp38-win_amd64.whl (666 kB)\n",
++      "Requirement already satisfied: joblib>=0.14.1 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from phik<0.13,>=0.11.1->pandas-profiling==3.6.2) (1.3.2)\n",
++      "Collecting pydantic<1.11,>=1.8.1\n",
++      "  Downloading pydantic-1.10.14-cp38-cp38-win_amd64.whl (2.2 MB)\n",
++      "Requirement already satisfied: typing-extensions>=4.2.0 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pydantic<1.11,>=1.8.1->pandas-profiling==3.6.2) (4.9.0)\n",
++      "Requirement already satisfied: six>=1.5 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from python-dateutil>=2.7->matplotlib<3.7,>=3.2->pandas-profiling==3.6.2) (1.16.0)\n",
++      "Collecting requests<2.29,>=2.24.0\n",
++      "  Downloading requests-2.28.2-py3-none-any.whl (62 kB)\n",
++      "Requirement already satisfied: idna<4,>=2.5 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from requests<2.29,>=2.24.0->pandas-profiling==3.6.2) (3.6)\n",
++      "Requirement already satisfied: charset-normalizer<4,>=2 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from requests<2.29,>=2.24.0->pandas-profiling==3.6.2) (3.3.2)\n",
++      "Requirement already satisfied: certifi>=2017.4.17 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from requests<2.29,>=2.24.0->pandas-profiling==3.6.2) (2023.11.17)\n",
++      "Collecting scipy<1.10,>=1.4.1\n",
++      "  Downloading scipy-1.9.3-cp38-cp38-win_amd64.whl (39.8 MB)\n",
++      "Collecting seaborn<0.13,>=0.10.1\n",
++      "  Downloading seaborn-0.12.2-py3-none-any.whl (293 kB)\n",
++      "Collecting statsmodels<0.14,>=0.13.2\n",
++      "  Downloading statsmodels-0.13.5-cp38-cp38-win_amd64.whl (9.2 MB)\n",
++      "Collecting patsy>=0.5.2\n",
++      "  Downloading patsy-0.5.6-py2.py3-none-any.whl (233 kB)\n",
++      "Collecting tangled-up-in-unicode>=0.0.4\n",
++      "  Downloading tangled_up_in_unicode-0.2.0-py3-none-any.whl (4.7 MB)\n",
++      "Collecting tqdm<4.65,>=4.48.2\n",
++      "  Downloading tqdm-4.64.1-py2.py3-none-any.whl (78 kB)\n",
++      "Requirement already satisfied: colorama in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from tqdm<4.65,>=4.48.2->pandas-profiling==3.6.2) (0.4.6)\n",
++      "Collecting typeguard<2.14,>=2.13.2\n",
++      "  Downloading typeguard-2.13.3-py3-none-any.whl (17 kB)\n",
++      "Collecting urllib3<1.27,>=1.21.1\n",
++      "  Downloading urllib3-1.26.18-py2.py3-none-any.whl (143 kB)\n",
++      "Collecting imagehash\n",
++      "  Downloading ImageHash-4.3.1-py2.py3-none-any.whl (296 kB)\n",
++      "Collecting PyWavelets\n",
++      "  Downloading PyWavelets-1.4.1-cp38-cp38-win_amd64.whl (4.2 MB)\n",
++      "Building wheels for collected packages: htmlmin\n",
++      "  Building wheel for htmlmin (setup.py): started\n",
++      "  Building wheel for htmlmin (setup.py): finished with status 'done'\n",
++      "  Created wheel for htmlmin: filename=htmlmin-0.1.12-py3-none-any.whl size=27110 sha256=d9bcb1e01d2a2b318bf1cfeb2825edc33d1aa9ae390ef563a9854ff2f160bf9d\n",
++      "  Stored in directory: c:\\users\\nelse\\appdata\\local\\pip\\cache\\wheels\\23\\14\\6e\\4be5bfeeb027f4939a01764b48edd5996acf574b0913fe5243\n",
++      "Successfully built htmlmin\n",
++      "Installing collected packages: numpy, tangled-up-in-unicode, scipy, PyWavelets, networkx, multimethod, visions, urllib3, patsy, imagehash, typeguard, tqdm, statsmodels, seaborn, requests, pydantic, phik, htmlmin, pandas-profiling\n",
++      "  Attempting uninstall: numpy\n",
++      "    Found existing installation: numpy 1.24.1\n",
++      "    Uninstalling numpy-1.24.1:\n",
++      "      Successfully uninstalled numpy-1.24.1\n",
++      "  Attempting uninstall: scipy\n",
++      "    Found existing installation: scipy 1.10.1\n",
++      "    Uninstalling scipy-1.10.1:\n",
++      "      Successfully uninstalled scipy-1.10.1\n",
++      "  Attempting uninstall: urllib3\n",
++      "    Found existing installation: urllib3 2.1.0\n",
++      "    Uninstalling urllib3-2.1.0:\n",
++      "      Successfully uninstalled urllib3-2.1.0\n",
++      "  Attempting uninstall: requests\n",
++      "    Found existing installation: requests 2.31.0\n",
++      "    Uninstalling requests-2.31.0:\n",
++      "      Successfully uninstalled requests-2.31.0\n",
++      "Successfully installed PyWavelets-1.4.1 htmlmin-0.1.12 imagehash-4.3.1 multimethod-1.9.1 networkx-3.1 numpy-1.23.5 pandas-profiling-3.6.2 patsy-0.5.6 phik-0.12.4 pydantic-1.10.14 requests-2.28.2 scipy-1.9.3 seaborn-0.12.2 statsmodels-0.13.5 tangled-up-in-unicode-0.2.0 tqdm-4.64.1 typeguard-2.13.3 urllib3-1.26.18 visions-0.7.5\n"
++     ]
++    },
++    {
++     "name": "stderr",
++     "output_type": "stream",
++     "text": [
++      "ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n",
++      "cookiecutter 1.7.2 requires Jinja2<3.0.0, but you have jinja2 3.1.3 which is incompatible.\n",
++      "cookiecutter 1.7.2 requires MarkupSafe<2.0.0, but you have markupsafe 2.1.4 which is incompatible.\n"
++     ]
++    },
++    {
++     "name": "stdout",
++     "output_type": "stream",
++     "text": [
++      "Collecting pandas==1.2.3\n",
++      "  Using cached pandas-1.2.3-cp38-cp38-win_amd64.whl (9.3 MB)\n",
++      "Requirement already satisfied: numpy>=1.16.5 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas==1.2.3) (1.23.5)\n",
++      "Requirement already satisfied: pytz>=2017.3 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas==1.2.3) (2023.3.post1)\n",
++      "Requirement already satisfied: python-dateutil>=2.7.3 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from pandas==1.2.3) (2.8.2)\n",
++      "Requirement already satisfied: six>=1.5 in d:\\python\\anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages (from python-dateutil>=2.7.3->pandas==1.2.3) (1.16.0)\n",
++      "Installing collected packages: pandas\n",
++      "  Attempting uninstall: pandas\n",
++      "    Found existing installation: pandas 1.2.2\n",
++      "    Uninstalling pandas-1.2.2:\n",
++      "      Successfully uninstalled pandas-1.2.2\n",
++      "Successfully installed pandas-1.2.3\n"
+      ]
+     }
+    ],
+@@ -90,7 +157,7 @@
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "54c4f98a",
++   "id": "4ece5457",
+    "metadata": {},
+    "source": [
+     "1. Fetch the artifact we just created (sample.csv) from W&B and read it with pandas:"
+@@ -98,102 +165,21 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 7,
+-   "id": "eed98c34",
++   "execution_count": 2,
++   "id": "e46e9162",
+    "metadata": {},
+    "outputs": [
+     {
+-     "data": {
+-      "text/html": [
+-       "Finishing last run (ID:v3d3q3rf) before initializing another..."
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "text/html": [
+-       "Waiting for W&B process to finish... <strong style=\"color:green\">(success).</strong>"
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "application/vnd.jupyter.widget-view+json": {
+-       "model_id": "a37b04273ead4a168e477c0394de3fcf",
+-       "version_major": 2,
+-       "version_minor": 0
+-      },
+-      "text/plain": [
+-       "VBox(children=(Label(value='0.043 MB of 0.043 MB uploaded (0.000 MB deduped)\\r'), FloatProgress(value=1.0, max…"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "text/html": [
+-       " View run <strong style=\"color:#cdcd00\">visionary-lake-13</strong> at: <a href=\"https://wandb.ai/annyang1963/nyc_airbnb/runs/v3d3q3rf\" target=\"_blank\">https://wandb.ai/annyang1963/nyc_airbnb/runs/v3d3q3rf</a><br/>Synced 7 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)"
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "text/html": [
+-       "Find logs at: <code>./wandb/run-20230412_183324-v3d3q3rf/logs</code>"
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "text/html": [
+-       "Successfully finished last run (ID:v3d3q3rf). Initializing new run:<br/>"
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "application/vnd.jupyter.widget-view+json": {
+-       "model_id": "110e5eb88c9f4f9bada3b547c8cd62eb",
+-       "version_major": 2,
+-       "version_minor": 0
+-      },
+-      "text/plain": [
+-       "VBox(children=(Label(value='Waiting for wandb.init()...\\r'), FloatProgress(value=0.016671707533333326, max=1.0…"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
++     "name": "stderr",
++     "output_type": "stream",
++     "text": [
++      "\u001b[34m\u001b[1mwandb\u001b[0m: Currently logged in as: \u001b[33mkylenelsen\u001b[0m. Use \u001b[1m`wandb login --relogin`\u001b[0m to force relogin\n"
++     ]
+     },
+     {
+      "data": {
+       "text/html": [
+-       "wandb version 0.14.2 is available!  To upgrade, please run:\n",
++       "wandb version 0.16.2 is available!  To upgrade, please run:\n",
+        " $ pip install wandb --upgrade"
+       ],
+       "text/plain": [
+@@ -218,7 +204,7 @@
+     {
+      "data": {
+       "text/html": [
+-       "Run data is saved locally in <code>/Users/hyang/Huimin project/Project-Build-an-ML-Pipeline-Starter/src/eda/wandb/run-20230412_183404-cl95qrqk</code>"
++       "Run data is saved locally in <code>C:\\Users\\nelse\\Desktop\\Folders\\WGU\\WGU-MLDevOps\\Project-Build-an-ML-Pipeline-Starter\\src\\eda\\wandb\\run-20240129_112514-smtvi0o5</code>"
+       ],
+       "text/plain": [
+        "<IPython.core.display.HTML object>"
+@@ -230,7 +216,7 @@
+     {
+      "data": {
+       "text/html": [
+-       "Syncing run <strong><a href=\"https://wandb.ai/annyang1963/nyc_airbnb/runs/cl95qrqk\" target=\"_blank\">summer-galaxy-14</a></strong> to <a href=\"https://wandb.ai/annyang1963/nyc_airbnb\" target=\"_blank\">Weights & Biases</a> (<a href=\"https://wandb.me/run\" target=\"_blank\">docs</a>)<br/>"
++       "Syncing run <strong><a href=\"https://wandb.ai/kylenelsen/nyc_airbnb/runs/smtvi0o5\" target=\"_blank\">wandering-resonance-1</a></strong> to <a href=\"https://wandb.ai/kylenelsen/nyc_airbnb\" target=\"_blank\">Weights & Biases</a> (<a href=\"https://wandb.me/run\" target=\"_blank\">docs</a>)<br/>"
+       ],
+       "text/plain": [
+        "<IPython.core.display.HTML object>"
+@@ -242,7 +228,7 @@
+     {
+      "data": {
+       "text/html": [
+-       " View project at <a href=\"https://wandb.ai/annyang1963/nyc_airbnb\" target=\"_blank\">https://wandb.ai/annyang1963/nyc_airbnb</a>"
++       " View project at <a href=\"https://wandb.ai/kylenelsen/nyc_airbnb\" target=\"_blank\">https://wandb.ai/kylenelsen/nyc_airbnb</a>"
+       ],
+       "text/plain": [
+        "<IPython.core.display.HTML object>"
+@@ -254,7 +240,7 @@
+     {
+      "data": {
+       "text/html": [
+-       " View run at <a href=\"https://wandb.ai/annyang1963/nyc_airbnb/runs/cl95qrqk\" target=\"_blank\">https://wandb.ai/annyang1963/nyc_airbnb/runs/cl95qrqk</a>"
++       " View run at <a href=\"https://wandb.ai/kylenelsen/nyc_airbnb/runs/smtvi0o5\" target=\"_blank\">https://wandb.ai/kylenelsen/nyc_airbnb/runs/smtvi0o5</a>"
+       ],
+       "text/plain": [
+        "<IPython.core.display.HTML object>"
+@@ -262,6 +248,31 @@
+      },
+      "metadata": {},
+      "output_type": "display_data"
++    },
++    {
++     "ename": "CommError",
++     "evalue": "Project kylenelsen/nyc_airbnb does not contain artifact: \"sample.csv:latest\"",
++     "output_type": "error",
++     "traceback": [
++      "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m",
++      "\u001b[1;31mValueError\u001b[0m                                Traceback (most recent call last)",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\normalize.py:26\u001b[0m, in \u001b[0;36mnormalize_exceptions.<locals>.wrapper\u001b[1;34m(*args, **kwargs)\u001b[0m\n\u001b[0;32m     25\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[1;32m---> 26\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[43mfunc\u001b[49m\u001b[43m(\u001b[49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[43margs\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[43mkwargs\u001b[49m\u001b[43m)\u001b[49m\n\u001b[0;32m     27\u001b[0m \u001b[38;5;28;01mexcept\u001b[39;00m requests\u001b[38;5;241m.\u001b[39mHTTPError \u001b[38;5;28;01mas\u001b[39;00m err:\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\public.py:949\u001b[0m, in \u001b[0;36mApi.artifact\u001b[1;34m(self, name, type)\u001b[0m\n\u001b[0;32m    948\u001b[0m entity, project, artifact_name \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_parse_artifact_path(name)\n\u001b[1;32m--> 949\u001b[0m artifact \u001b[38;5;241m=\u001b[39m \u001b[43mArtifact\u001b[49m\u001b[43m(\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43mclient\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mentity\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mproject\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43martifact_name\u001b[49m\u001b[43m)\u001b[49m\n\u001b[0;32m    950\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28mtype\u001b[39m \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m \u001b[38;5;129;01mand\u001b[39;00m artifact\u001b[38;5;241m.\u001b[39mtype \u001b[38;5;241m!=\u001b[39m \u001b[38;5;28mtype\u001b[39m:\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\public.py:4343\u001b[0m, in \u001b[0;36mArtifact.__init__\u001b[1;34m(self, client, entity, project, name, attrs)\u001b[0m\n\u001b[0;32m   4342\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[1;32m-> 4343\u001b[0m     \u001b[38;5;28;43mself\u001b[39;49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43m_load\u001b[49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\n\u001b[0;32m   4344\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_metadata \u001b[38;5;241m=\u001b[39m json\u001b[38;5;241m.\u001b[39mloads(\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmetadata\u001b[39m\u001b[38;5;124m\"\u001b[39m) \u001b[38;5;129;01mor\u001b[39;00m \u001b[38;5;124m\"\u001b[39m\u001b[38;5;132;01m{}\u001b[39;00m\u001b[38;5;124m\"\u001b[39m)\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\public.py:5072\u001b[0m, in \u001b[0;36mArtifact._load\u001b[1;34m(self)\u001b[0m\n\u001b[0;32m   5067\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m (\n\u001b[0;32m   5068\u001b[0m     response \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[0;32m   5069\u001b[0m     \u001b[38;5;129;01mor\u001b[39;00m response\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mproject\u001b[39m\u001b[38;5;124m\"\u001b[39m) \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[0;32m   5070\u001b[0m     \u001b[38;5;129;01mor\u001b[39;00m response[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mproject\u001b[39m\u001b[38;5;124m\"\u001b[39m]\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124martifact\u001b[39m\u001b[38;5;124m\"\u001b[39m) \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[0;32m   5071\u001b[0m ):\n\u001b[1;32m-> 5072\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mValueError\u001b[39;00m(\n\u001b[0;32m   5073\u001b[0m         \u001b[38;5;124m'\u001b[39m\u001b[38;5;124mProject \u001b[39m\u001b[38;5;132;01m%s\u001b[39;00m\u001b[38;5;124m/\u001b[39m\u001b[38;5;132;01m%s\u001b[39;00m\u001b[38;5;124m does not contain artifact: \u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;132;01m%s\u001b[39;00m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m'\u001b[39m\n\u001b[0;32m   5074\u001b[0m         \u001b[38;5;241m%\u001b[39m (\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mentity, \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mproject, \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_artifact_name)\n\u001b[0;32m   5075\u001b[0m     )\n\u001b[0;32m   5076\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs \u001b[38;5;241m=\u001b[39m response[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mproject\u001b[39m\u001b[38;5;124m\"\u001b[39m][\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124martifact\u001b[39m\u001b[38;5;124m\"\u001b[39m]\n",
++      "\u001b[1;31mValueError\u001b[0m: Project kylenelsen/nyc_airbnb does not contain artifact: \"sample.csv:latest\"",
++      "\nDuring handling of the above exception, another exception occurred:\n",
++      "\u001b[1;31mCommError\u001b[0m                                 Traceback (most recent call last)",
++      "Cell \u001b[1;32mIn[2], line 5\u001b[0m\n\u001b[0;32m      3\u001b[0m \u001b[38;5;66;03m# Note that we use save_code=True in the call to wandb.init so the notebook is uploaded and versioned by W&B\u001b[39;00m\n\u001b[0;32m      4\u001b[0m run \u001b[38;5;241m=\u001b[39m wandb\u001b[38;5;241m.\u001b[39minit(project\u001b[38;5;241m=\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mnyc_airbnb\u001b[39m\u001b[38;5;124m\"\u001b[39m, group\u001b[38;5;241m=\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124meda\u001b[39m\u001b[38;5;124m\"\u001b[39m, save_code\u001b[38;5;241m=\u001b[39m\u001b[38;5;28;01mTrue\u001b[39;00m)\n\u001b[1;32m----> 5\u001b[0m local_path \u001b[38;5;241m=\u001b[39m \u001b[43mwandb\u001b[49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43muse_artifact\u001b[49m\u001b[43m(\u001b[49m\u001b[38;5;124;43m\"\u001b[39;49m\u001b[38;5;124;43msample.csv:latest\u001b[39;49m\u001b[38;5;124;43m\"\u001b[39;49m\u001b[43m)\u001b[49m\u001b[38;5;241m.\u001b[39mfile()\n\u001b[0;32m      6\u001b[0m df \u001b[38;5;241m=\u001b[39m pd\u001b[38;5;241m.\u001b[39mread_csv(local_path)\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\sdk\\wandb_run.py:333\u001b[0m, in \u001b[0;36m_run_decorator._attach.<locals>.wrapper\u001b[1;34m(self, *args, **kwargs)\u001b[0m\n\u001b[0;32m    331\u001b[0m         \u001b[38;5;28;01mraise\u001b[39;00m e\n\u001b[0;32m    332\u001b[0m     \u001b[38;5;28mcls\u001b[39m\u001b[38;5;241m.\u001b[39m_is_attaching \u001b[38;5;241m=\u001b[39m \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m\"\u001b[39m\n\u001b[1;32m--> 333\u001b[0m \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[43mfunc\u001b[49m\u001b[43m(\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[43margs\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[43mkwargs\u001b[49m\u001b[43m)\u001b[49m\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\sdk\\wandb_run.py:2617\u001b[0m, in \u001b[0;36mRun.use_artifact\u001b[1;34m(self, artifact_or_name, type, aliases, use_as)\u001b[0m\n\u001b[0;32m   2615\u001b[0m     name \u001b[38;5;241m=\u001b[39m artifact_or_name\n\u001b[0;32m   2616\u001b[0m public_api \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_public_api()\n\u001b[1;32m-> 2617\u001b[0m artifact \u001b[38;5;241m=\u001b[39m \u001b[43mpublic_api\u001b[49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43martifact\u001b[49m\u001b[43m(\u001b[49m\u001b[38;5;28;43mtype\u001b[39;49m\u001b[38;5;241;43m=\u001b[39;49m\u001b[38;5;28;43mtype\u001b[39;49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mname\u001b[49m\u001b[38;5;241;43m=\u001b[39;49m\u001b[43mname\u001b[49m\u001b[43m)\u001b[49m\n\u001b[0;32m   2618\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28mtype\u001b[39m \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m \u001b[38;5;129;01mand\u001b[39;00m \u001b[38;5;28mtype\u001b[39m \u001b[38;5;241m!=\u001b[39m artifact\u001b[38;5;241m.\u001b[39mtype:\n\u001b[0;32m   2619\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mValueError\u001b[39;00m(\n\u001b[0;32m   2620\u001b[0m         \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mSupplied type \u001b[39m\u001b[38;5;132;01m{}\u001b[39;00m\u001b[38;5;124m does not match type \u001b[39m\u001b[38;5;132;01m{}\u001b[39;00m\u001b[38;5;124m of artifact \u001b[39m\u001b[38;5;132;01m{}\u001b[39;00m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;241m.\u001b[39mformat(\n\u001b[0;32m   2621\u001b[0m             \u001b[38;5;28mtype\u001b[39m, artifact\u001b[38;5;241m.\u001b[39mtype, artifact\u001b[38;5;241m.\u001b[39mname\n\u001b[0;32m   2622\u001b[0m         )\n\u001b[0;32m   2623\u001b[0m     )\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\normalize.py:64\u001b[0m, in \u001b[0;36mnormalize_exceptions.<locals>.wrapper\u001b[1;34m(*args, **kwargs)\u001b[0m\n\u001b[0;32m     62\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m\n\u001b[0;32m     63\u001b[0m \u001b[38;5;28;01melse\u001b[39;00m:\n\u001b[1;32m---> 64\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m CommError(message, err)\u001b[38;5;241m.\u001b[39mwith_traceback(sys\u001b[38;5;241m.\u001b[39mexc_info()[\u001b[38;5;241m2\u001b[39m])\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\normalize.py:26\u001b[0m, in \u001b[0;36mnormalize_exceptions.<locals>.wrapper\u001b[1;34m(*args, **kwargs)\u001b[0m\n\u001b[0;32m     24\u001b[0m message \u001b[38;5;241m=\u001b[39m \u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mWhoa, you found a bug.\u001b[39m\u001b[38;5;124m\"\u001b[39m\n\u001b[0;32m     25\u001b[0m \u001b[38;5;28;01mtry\u001b[39;00m:\n\u001b[1;32m---> 26\u001b[0m     \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[43mfunc\u001b[49m\u001b[43m(\u001b[49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[43margs\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[38;5;241;43m*\u001b[39;49m\u001b[43mkwargs\u001b[49m\u001b[43m)\u001b[49m\n\u001b[0;32m     27\u001b[0m \u001b[38;5;28;01mexcept\u001b[39;00m requests\u001b[38;5;241m.\u001b[39mHTTPError \u001b[38;5;28;01mas\u001b[39;00m err:\n\u001b[0;32m     28\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m CommError(err\u001b[38;5;241m.\u001b[39mresponse, err)\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\public.py:949\u001b[0m, in \u001b[0;36mApi.artifact\u001b[1;34m(self, name, type)\u001b[0m\n\u001b[0;32m    947\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mValueError\u001b[39;00m(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mYou must specify name= to fetch an artifact.\u001b[39m\u001b[38;5;124m\"\u001b[39m)\n\u001b[0;32m    948\u001b[0m entity, project, artifact_name \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_parse_artifact_path(name)\n\u001b[1;32m--> 949\u001b[0m artifact \u001b[38;5;241m=\u001b[39m \u001b[43mArtifact\u001b[49m\u001b[43m(\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43mclient\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mentity\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43mproject\u001b[49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[43martifact_name\u001b[49m\u001b[43m)\u001b[49m\n\u001b[0;32m    950\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28mtype\u001b[39m \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m \u001b[38;5;129;01mand\u001b[39;00m artifact\u001b[38;5;241m.\u001b[39mtype \u001b[38;5;241m!=\u001b[39m \u001b[38;5;28mtype\u001b[39m:\n\u001b[0;32m    951\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mValueError\u001b[39;00m(\n\u001b[0;32m    952\u001b[0m         \u001b[38;5;124mf\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mtype \u001b[39m\u001b[38;5;132;01m{\u001b[39;00m\u001b[38;5;28mtype\u001b[39m\u001b[38;5;132;01m}\u001b[39;00m\u001b[38;5;124m specified but this artifact is of type \u001b[39m\u001b[38;5;132;01m{\u001b[39;00martifact\u001b[38;5;241m.\u001b[39mtype\u001b[38;5;132;01m}\u001b[39;00m\u001b[38;5;124m\"\u001b[39m\n\u001b[0;32m    953\u001b[0m     )\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\public.py:4343\u001b[0m, in \u001b[0;36mArtifact.__init__\u001b[1;34m(self, client, entity, project, name, attrs)\u001b[0m\n\u001b[0;32m   4341\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs \u001b[38;5;241m=\u001b[39m attrs\n\u001b[0;32m   4342\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[1;32m-> 4343\u001b[0m     \u001b[38;5;28;43mself\u001b[39;49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43m_load\u001b[49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\n\u001b[0;32m   4344\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_metadata \u001b[38;5;241m=\u001b[39m json\u001b[38;5;241m.\u001b[39mloads(\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mmetadata\u001b[39m\u001b[38;5;124m\"\u001b[39m) \u001b[38;5;129;01mor\u001b[39;00m \u001b[38;5;124m\"\u001b[39m\u001b[38;5;132;01m{}\u001b[39;00m\u001b[38;5;124m\"\u001b[39m)\n\u001b[0;32m   4345\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_description \u001b[38;5;241m=\u001b[39m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mdescription\u001b[39m\u001b[38;5;124m\"\u001b[39m, \u001b[38;5;28;01mNone\u001b[39;00m)\n",
++      "File \u001b[1;32mD:\\python\\Anaconda\\envs\\nyc_airbnb_dev\\lib\\site-packages\\wandb\\apis\\public.py:5072\u001b[0m, in \u001b[0;36mArtifact._load\u001b[1;34m(self)\u001b[0m\n\u001b[0;32m   5064\u001b[0m         \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mValueError\u001b[39;00m(\n\u001b[0;32m   5065\u001b[0m             \u001b[38;5;124m'\u001b[39m\u001b[38;5;124mAttempted to fetch artifact without alias (e.g. \u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m<artifact_name>:v3\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m or \u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m<artifact_name>:latest\u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m)\u001b[39m\u001b[38;5;124m'\u001b[39m\n\u001b[0;32m   5066\u001b[0m         )\n\u001b[0;32m   5067\u001b[0m \u001b[38;5;28;01mif\u001b[39;00m (\n\u001b[0;32m   5068\u001b[0m     response \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[0;32m   5069\u001b[0m     \u001b[38;5;129;01mor\u001b[39;00m response\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mproject\u001b[39m\u001b[38;5;124m\"\u001b[39m) \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[0;32m   5070\u001b[0m     \u001b[38;5;129;01mor\u001b[39;00m response[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mproject\u001b[39m\u001b[38;5;124m\"\u001b[39m]\u001b[38;5;241m.\u001b[39mget(\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124martifact\u001b[39m\u001b[38;5;124m\"\u001b[39m) \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[0;32m   5071\u001b[0m ):\n\u001b[1;32m-> 5072\u001b[0m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mValueError\u001b[39;00m(\n\u001b[0;32m   5073\u001b[0m         \u001b[38;5;124m'\u001b[39m\u001b[38;5;124mProject \u001b[39m\u001b[38;5;132;01m%s\u001b[39;00m\u001b[38;5;124m/\u001b[39m\u001b[38;5;132;01m%s\u001b[39;00m\u001b[38;5;124m does not contain artifact: \u001b[39m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;132;01m%s\u001b[39;00m\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124m'\u001b[39m\n\u001b[0;32m   5074\u001b[0m         \u001b[38;5;241m%\u001b[39m (\u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mentity, \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39mproject, \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_artifact_name)\n\u001b[0;32m   5075\u001b[0m     )\n\u001b[0;32m   5076\u001b[0m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs \u001b[38;5;241m=\u001b[39m response[\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124mproject\u001b[39m\u001b[38;5;124m\"\u001b[39m][\u001b[38;5;124m\"\u001b[39m\u001b[38;5;124martifact\u001b[39m\u001b[38;5;124m\"\u001b[39m]\n\u001b[0;32m   5077\u001b[0m \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[38;5;28mself\u001b[39m\u001b[38;5;241m.\u001b[39m_attrs\n",
++      "\u001b[1;31mCommError\u001b[0m: Project kylenelsen/nyc_airbnb does not contain artifact: \"sample.csv:latest\""
++     ]
+     }
+    ],
+    "source": [
+@@ -275,7 +286,7 @@
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "472b8c0d",
++   "id": "25204ba7",
+    "metadata": {},
+    "source": [
+     "2. Explore the data in df"
+@@ -283,420 +294,37 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 8,
+-   "id": "e7902159",
++   "execution_count": null,
++   "id": "f36ef05c",
+    "metadata": {},
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "<class 'pandas.core.frame.DataFrame'>\n",
+-      "RangeIndex: 20000 entries, 0 to 19999\n",
+-      "Data columns (total 16 columns):\n",
+-      " #   Column                          Non-Null Count  Dtype  \n",
+-      "---  ------                          --------------  -----  \n",
+-      " 0   id                              20000 non-null  int64  \n",
+-      " 1   name                            19993 non-null  object \n",
+-      " 2   host_id                         20000 non-null  int64  \n",
+-      " 3   host_name                       19992 non-null  object \n",
+-      " 4   neighbourhood_group             20000 non-null  object \n",
+-      " 5   neighbourhood                   20000 non-null  object \n",
+-      " 6   latitude                        20000 non-null  float64\n",
+-      " 7   longitude                       20000 non-null  float64\n",
+-      " 8   room_type                       20000 non-null  object \n",
+-      " 9   price                           20000 non-null  int64  \n",
+-      " 10  minimum_nights                  20000 non-null  int64  \n",
+-      " 11  number_of_reviews               20000 non-null  int64  \n",
+-      " 12  last_review                     15877 non-null  object \n",
+-      " 13  reviews_per_month               15877 non-null  float64\n",
+-      " 14  calculated_host_listings_count  20000 non-null  int64  \n",
+-      " 15  availability_365                20000 non-null  int64  \n",
+-      "dtypes: float64(3), int64(7), object(6)\n",
+-      "memory usage: 2.4+ MB\n"
+-     ]
+-    }
+-   ],
++   "outputs": [],
+    "source": [
+     "df.info()"
+    ]
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 9,
+-   "id": "ef6f1457",
++   "execution_count": null,
++   "id": "8ba9dee3",
+    "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/html": [
+-       "<div>\n",
+-       "<style scoped>\n",
+-       "    .dataframe tbody tr th:only-of-type {\n",
+-       "        vertical-align: middle;\n",
+-       "    }\n",
+-       "\n",
+-       "    .dataframe tbody tr th {\n",
+-       "        vertical-align: top;\n",
+-       "    }\n",
+-       "\n",
+-       "    .dataframe thead th {\n",
+-       "        text-align: right;\n",
+-       "    }\n",
+-       "</style>\n",
+-       "<table border=\"1\" class=\"dataframe\">\n",
+-       "  <thead>\n",
+-       "    <tr style=\"text-align: right;\">\n",
+-       "      <th></th>\n",
+-       "      <th>id</th>\n",
+-       "      <th>host_id</th>\n",
+-       "      <th>latitude</th>\n",
+-       "      <th>longitude</th>\n",
+-       "      <th>price</th>\n",
+-       "      <th>minimum_nights</th>\n",
+-       "      <th>number_of_reviews</th>\n",
+-       "      <th>reviews_per_month</th>\n",
+-       "      <th>calculated_host_listings_count</th>\n",
+-       "      <th>availability_365</th>\n",
+-       "    </tr>\n",
+-       "  </thead>\n",
+-       "  <tbody>\n",
+-       "    <tr>\n",
+-       "      <th>count</th>\n",
+-       "      <td>2.000000e+04</td>\n",
+-       "      <td>2.000000e+04</td>\n",
+-       "      <td>20000.000000</td>\n",
+-       "      <td>20000.000000</td>\n",
+-       "      <td>20000.000000</td>\n",
+-       "      <td>20000.000000</td>\n",
+-       "      <td>20000.000000</td>\n",
+-       "      <td>15877.000000</td>\n",
+-       "      <td>20000.000000</td>\n",
+-       "      <td>20000.000000</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>mean</th>\n",
+-       "      <td>1.892380e+07</td>\n",
+-       "      <td>6.746034e+07</td>\n",
+-       "      <td>40.728455</td>\n",
+-       "      <td>-73.952125</td>\n",
+-       "      <td>153.269050</td>\n",
+-       "      <td>6.992100</td>\n",
+-       "      <td>23.274100</td>\n",
+-       "      <td>1.377446</td>\n",
+-       "      <td>6.955450</td>\n",
+-       "      <td>112.901200</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>std</th>\n",
+-       "      <td>1.101223e+07</td>\n",
+-       "      <td>7.857936e+07</td>\n",
+-       "      <td>0.054755</td>\n",
+-       "      <td>0.046559</td>\n",
+-       "      <td>243.325609</td>\n",
+-       "      <td>21.645449</td>\n",
+-       "      <td>44.927793</td>\n",
+-       "      <td>1.683006</td>\n",
+-       "      <td>32.433831</td>\n",
+-       "      <td>131.762226</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>min</th>\n",
+-       "      <td>2.539000e+03</td>\n",
+-       "      <td>2.571000e+03</td>\n",
+-       "      <td>40.508730</td>\n",
+-       "      <td>-74.239140</td>\n",
+-       "      <td>0.000000</td>\n",
+-       "      <td>1.000000</td>\n",
+-       "      <td>0.000000</td>\n",
+-       "      <td>0.010000</td>\n",
+-       "      <td>1.000000</td>\n",
+-       "      <td>0.000000</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>25%</th>\n",
+-       "      <td>9.393540e+06</td>\n",
+-       "      <td>7.853718e+06</td>\n",
+-       "      <td>40.689420</td>\n",
+-       "      <td>-73.983030</td>\n",
+-       "      <td>69.000000</td>\n",
+-       "      <td>1.000000</td>\n",
+-       "      <td>1.000000</td>\n",
+-       "      <td>0.190000</td>\n",
+-       "      <td>1.000000</td>\n",
+-       "      <td>0.000000</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>50%</th>\n",
+-       "      <td>1.952117e+07</td>\n",
+-       "      <td>3.111431e+07</td>\n",
+-       "      <td>40.722730</td>\n",
+-       "      <td>-73.955640</td>\n",
+-       "      <td>105.000000</td>\n",
+-       "      <td>2.000000</td>\n",
+-       "      <td>5.000000</td>\n",
+-       "      <td>0.720000</td>\n",
+-       "      <td>1.000000</td>\n",
+-       "      <td>44.000000</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>75%</th>\n",
+-       "      <td>2.912936e+07</td>\n",
+-       "      <td>1.068426e+08</td>\n",
+-       "      <td>40.762990</td>\n",
+-       "      <td>-73.936380</td>\n",
+-       "      <td>175.000000</td>\n",
+-       "      <td>5.000000</td>\n",
+-       "      <td>23.000000</td>\n",
+-       "      <td>2.010000</td>\n",
+-       "      <td>2.000000</td>\n",
+-       "      <td>229.000000</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>max</th>\n",
+-       "      <td>3.648561e+07</td>\n",
+-       "      <td>2.742733e+08</td>\n",
+-       "      <td>40.913060</td>\n",
+-       "      <td>-73.717950</td>\n",
+-       "      <td>10000.000000</td>\n",
+-       "      <td>1250.000000</td>\n",
+-       "      <td>607.000000</td>\n",
+-       "      <td>27.950000</td>\n",
+-       "      <td>327.000000</td>\n",
+-       "      <td>365.000000</td>\n",
+-       "    </tr>\n",
+-       "  </tbody>\n",
+-       "</table>\n",
+-       "</div>"
+-      ],
+-      "text/plain": [
+-       "                 id       host_id      latitude     longitude         price  \\\n",
+-       "count  2.000000e+04  2.000000e+04  20000.000000  20000.000000  20000.000000   \n",
+-       "mean   1.892380e+07  6.746034e+07     40.728455    -73.952125    153.269050   \n",
+-       "std    1.101223e+07  7.857936e+07      0.054755      0.046559    243.325609   \n",
+-       "min    2.539000e+03  2.571000e+03     40.508730    -74.239140      0.000000   \n",
+-       "25%    9.393540e+06  7.853718e+06     40.689420    -73.983030     69.000000   \n",
+-       "50%    1.952117e+07  3.111431e+07     40.722730    -73.955640    105.000000   \n",
+-       "75%    2.912936e+07  1.068426e+08     40.762990    -73.936380    175.000000   \n",
+-       "max    3.648561e+07  2.742733e+08     40.913060    -73.717950  10000.000000   \n",
+-       "\n",
+-       "       minimum_nights  number_of_reviews  reviews_per_month  \\\n",
+-       "count    20000.000000       20000.000000       15877.000000   \n",
+-       "mean         6.992100          23.274100           1.377446   \n",
+-       "std         21.645449          44.927793           1.683006   \n",
+-       "min          1.000000           0.000000           0.010000   \n",
+-       "25%          1.000000           1.000000           0.190000   \n",
+-       "50%          2.000000           5.000000           0.720000   \n",
+-       "75%          5.000000          23.000000           2.010000   \n",
+-       "max       1250.000000         607.000000          27.950000   \n",
+-       "\n",
+-       "       calculated_host_listings_count  availability_365  \n",
+-       "count                    20000.000000      20000.000000  \n",
+-       "mean                         6.955450        112.901200  \n",
+-       "std                         32.433831        131.762226  \n",
+-       "min                          1.000000          0.000000  \n",
+-       "25%                          1.000000          0.000000  \n",
+-       "50%                          1.000000         44.000000  \n",
+-       "75%                          2.000000        229.000000  \n",
+-       "max                        327.000000        365.000000  "
+-      ]
+-     },
+-     "execution_count": 9,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
++   "outputs": [],
+    "source": [
+     "df.describe()"
+    ]
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 10,
+-   "id": "13548f59",
++   "execution_count": null,
++   "id": "6cc7d785",
+    "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/html": [
+-       "<div>\n",
+-       "<style scoped>\n",
+-       "    .dataframe tbody tr th:only-of-type {\n",
+-       "        vertical-align: middle;\n",
+-       "    }\n",
+-       "\n",
+-       "    .dataframe tbody tr th {\n",
+-       "        vertical-align: top;\n",
+-       "    }\n",
+-       "\n",
+-       "    .dataframe thead th {\n",
+-       "        text-align: right;\n",
+-       "    }\n",
+-       "</style>\n",
+-       "<table border=\"1\" class=\"dataframe\">\n",
+-       "  <thead>\n",
+-       "    <tr style=\"text-align: right;\">\n",
+-       "      <th></th>\n",
+-       "      <th>id</th>\n",
+-       "      <th>name</th>\n",
+-       "      <th>host_id</th>\n",
+-       "      <th>host_name</th>\n",
+-       "      <th>neighbourhood_group</th>\n",
+-       "      <th>neighbourhood</th>\n",
+-       "      <th>latitude</th>\n",
+-       "      <th>longitude</th>\n",
+-       "      <th>room_type</th>\n",
+-       "      <th>price</th>\n",
+-       "      <th>minimum_nights</th>\n",
+-       "      <th>number_of_reviews</th>\n",
+-       "      <th>last_review</th>\n",
+-       "      <th>reviews_per_month</th>\n",
+-       "      <th>calculated_host_listings_count</th>\n",
+-       "      <th>availability_365</th>\n",
+-       "    </tr>\n",
+-       "  </thead>\n",
+-       "  <tbody>\n",
+-       "    <tr>\n",
+-       "      <th>0</th>\n",
+-       "      <td>9138664</td>\n",
+-       "      <td>Private Lg Room 15 min to Manhattan</td>\n",
+-       "      <td>47594947</td>\n",
+-       "      <td>Iris</td>\n",
+-       "      <td>Queens</td>\n",
+-       "      <td>Sunnyside</td>\n",
+-       "      <td>40.74271</td>\n",
+-       "      <td>-73.92493</td>\n",
+-       "      <td>Private room</td>\n",
+-       "      <td>74</td>\n",
+-       "      <td>2</td>\n",
+-       "      <td>6</td>\n",
+-       "      <td>2019-05-26</td>\n",
+-       "      <td>0.13</td>\n",
+-       "      <td>1</td>\n",
+-       "      <td>5</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>1</th>\n",
+-       "      <td>31444015</td>\n",
+-       "      <td>TIME SQUARE CHARMING ONE BED IN HELL'S KITCHEN...</td>\n",
+-       "      <td>8523790</td>\n",
+-       "      <td>Johlex</td>\n",
+-       "      <td>Manhattan</td>\n",
+-       "      <td>Hell's Kitchen</td>\n",
+-       "      <td>40.76682</td>\n",
+-       "      <td>-73.98878</td>\n",
+-       "      <td>Entire home/apt</td>\n",
+-       "      <td>170</td>\n",
+-       "      <td>3</td>\n",
+-       "      <td>0</td>\n",
+-       "      <td>NaN</td>\n",
+-       "      <td>NaN</td>\n",
+-       "      <td>1</td>\n",
+-       "      <td>188</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>2</th>\n",
+-       "      <td>8741020</td>\n",
+-       "      <td>Voted #1 Location Quintessential 1BR W Village...</td>\n",
+-       "      <td>45854238</td>\n",
+-       "      <td>John</td>\n",
+-       "      <td>Manhattan</td>\n",
+-       "      <td>West Village</td>\n",
+-       "      <td>40.73631</td>\n",
+-       "      <td>-74.00611</td>\n",
+-       "      <td>Entire home/apt</td>\n",
+-       "      <td>245</td>\n",
+-       "      <td>3</td>\n",
+-       "      <td>51</td>\n",
+-       "      <td>2018-09-19</td>\n",
+-       "      <td>1.12</td>\n",
+-       "      <td>1</td>\n",
+-       "      <td>0</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>3</th>\n",
+-       "      <td>34602077</td>\n",
+-       "      <td>Spacious 1 bedroom apartment 15min from Manhattan</td>\n",
+-       "      <td>261055465</td>\n",
+-       "      <td>Regan</td>\n",
+-       "      <td>Queens</td>\n",
+-       "      <td>Astoria</td>\n",
+-       "      <td>40.76424</td>\n",
+-       "      <td>-73.92351</td>\n",
+-       "      <td>Entire home/apt</td>\n",
+-       "      <td>125</td>\n",
+-       "      <td>3</td>\n",
+-       "      <td>1</td>\n",
+-       "      <td>2019-05-24</td>\n",
+-       "      <td>0.65</td>\n",
+-       "      <td>1</td>\n",
+-       "      <td>13</td>\n",
+-       "    </tr>\n",
+-       "    <tr>\n",
+-       "      <th>4</th>\n",
+-       "      <td>23203149</td>\n",
+-       "      <td>Big beautiful bedroom in huge Bushwick apartment</td>\n",
+-       "      <td>143460</td>\n",
+-       "      <td>Megan</td>\n",
+-       "      <td>Brooklyn</td>\n",
+-       "      <td>Bushwick</td>\n",
+-       "      <td>40.69839</td>\n",
+-       "      <td>-73.92044</td>\n",
+-       "      <td>Private room</td>\n",
+-       "      <td>65</td>\n",
+-       "      <td>2</td>\n",
+-       "      <td>8</td>\n",
+-       "      <td>2019-06-23</td>\n",
+-       "      <td>0.52</td>\n",
+-       "      <td>2</td>\n",
+-       "      <td>8</td>\n",
+-       "    </tr>\n",
+-       "  </tbody>\n",
+-       "</table>\n",
+-       "</div>"
+-      ],
+-      "text/plain": [
+-       "         id                                               name    host_id  \\\n",
+-       "0   9138664                Private Lg Room 15 min to Manhattan   47594947   \n",
+-       "1  31444015  TIME SQUARE CHARMING ONE BED IN HELL'S KITCHEN...    8523790   \n",
+-       "2   8741020  Voted #1 Location Quintessential 1BR W Village...   45854238   \n",
+-       "3  34602077  Spacious 1 bedroom apartment 15min from Manhattan  261055465   \n",
+-       "4  23203149   Big beautiful bedroom in huge Bushwick apartment     143460   \n",
+-       "\n",
+-       "  host_name neighbourhood_group   neighbourhood  latitude  longitude  \\\n",
+-       "0      Iris              Queens       Sunnyside  40.74271  -73.92493   \n",
+-       "1    Johlex           Manhattan  Hell's Kitchen  40.76682  -73.98878   \n",
+-       "2      John           Manhattan    West Village  40.73631  -74.00611   \n",
+-       "3     Regan              Queens         Astoria  40.76424  -73.92351   \n",
+-       "4     Megan            Brooklyn        Bushwick  40.69839  -73.92044   \n",
+-       "\n",
+-       "         room_type  price  minimum_nights  number_of_reviews last_review  \\\n",
+-       "0     Private room     74               2                  6  2019-05-26   \n",
+-       "1  Entire home/apt    170               3                  0         NaN   \n",
+-       "2  Entire home/apt    245               3                 51  2018-09-19   \n",
+-       "3  Entire home/apt    125               3                  1  2019-05-24   \n",
+-       "4     Private room     65               2                  8  2019-06-23   \n",
+-       "\n",
+-       "   reviews_per_month  calculated_host_listings_count  availability_365  \n",
+-       "0               0.13                               1                 5  \n",
+-       "1                NaN                               1               188  \n",
+-       "2               1.12                               1                 0  \n",
+-       "3               0.65                               1                13  \n",
+-       "4               0.52                               2                 8  "
+-      ]
+-     },
+-     "execution_count": 10,
+-     "metadata": {},
+-     "output_type": "execute_result"
+-    }
+-   ],
++   "outputs": [],
+    "source": [
+     "df.head()"
+    ]
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "ecfee692",
++   "id": "affe0bdf",
+    "metadata": {},
+    "source": [
+     "3. What do you notice in the data? Look around and see what you can find.\n",
+@@ -706,7 +334,7 @@
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "b4bb415f",
++   "id": "f0fe9409",
+    "metadata": {},
+    "source": [
+     "4. Fix some of the little problems we have found in the data with the following code:"
+@@ -714,8 +342,8 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 11,
+-   "id": "4d685317",
++   "execution_count": null,
++   "id": "5f053d25",
+    "metadata": {},
+    "outputs": [],
+    "source": [
+@@ -730,7 +358,7 @@
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "17990df4",
++   "id": "848ca402",
+    "metadata": {},
+    "source": [
+     "Note how we did not impute missing values. We will do that in the inference pipeline, so we will be able to handle missing values also in production."
+@@ -738,7 +366,7 @@
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "09287f29",
++   "id": "0bb9ccd6",
+    "metadata": {},
+    "source": [
+     "5. Check with df.info() that all obvious problems have been solved"
+@@ -746,47 +374,17 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 12,
+-   "id": "b83b4970",
++   "execution_count": null,
++   "id": "322a454c",
+    "metadata": {},
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "<class 'pandas.core.frame.DataFrame'>\n",
+-      "Int64Index: 19001 entries, 0 to 19999\n",
+-      "Data columns (total 16 columns):\n",
+-      " #   Column                          Non-Null Count  Dtype         \n",
+-      "---  ------                          --------------  -----         \n",
+-      " 0   id                              19001 non-null  int64         \n",
+-      " 1   name                            18994 non-null  object        \n",
+-      " 2   host_id                         19001 non-null  int64         \n",
+-      " 3   host_name                       18993 non-null  object        \n",
+-      " 4   neighbourhood_group             19001 non-null  object        \n",
+-      " 5   neighbourhood                   19001 non-null  object        \n",
+-      " 6   latitude                        19001 non-null  float64       \n",
+-      " 7   longitude                       19001 non-null  float64       \n",
+-      " 8   room_type                       19001 non-null  object        \n",
+-      " 9   price                           19001 non-null  int64         \n",
+-      " 10  minimum_nights                  19001 non-null  int64         \n",
+-      " 11  number_of_reviews               19001 non-null  int64         \n",
+-      " 12  last_review                     15243 non-null  datetime64[ns]\n",
+-      " 13  reviews_per_month               15243 non-null  float64       \n",
+-      " 14  calculated_host_listings_count  19001 non-null  int64         \n",
+-      " 15  availability_365                19001 non-null  int64         \n",
+-      "dtypes: datetime64[ns](1), float64(3), int64(7), object(5)\n",
+-      "memory usage: 2.5+ MB\n"
+-     ]
+-    }
+-   ],
++   "outputs": [],
+    "source": [
+     "df.info()"
+    ]
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "d727e697",
++   "id": "c3360a8e",
+    "metadata": {},
+    "source": [
+     "6. Terminate the run by running `run.finish()`"
+@@ -794,68 +392,17 @@
+   },
+   {
+    "cell_type": "code",
+-   "execution_count": 13,
+-   "id": "48b38586",
++   "execution_count": null,
++   "id": "ad55986d",
+    "metadata": {},
+-   "outputs": [
+-    {
+-     "data": {
+-      "text/html": [
+-       "Waiting for W&B process to finish... <strong style=\"color:green\">(success).</strong>"
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "application/vnd.jupyter.widget-view+json": {
+-       "model_id": "0a45b778e49c4dfeb3cc16a0684831b0",
+-       "version_major": 2,
+-       "version_minor": 0
+-      },
+-      "text/plain": [
+-       "VBox(children=(Label(value='0.043 MB of 0.057 MB uploaded (0.000 MB deduped)\\r'), FloatProgress(value=0.748456…"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "text/html": [
+-       " View run <strong style=\"color:#cdcd00\">summer-galaxy-14</strong> at: <a href=\"https://wandb.ai/annyang1963/nyc_airbnb/runs/cl95qrqk\" target=\"_blank\">https://wandb.ai/annyang1963/nyc_airbnb/runs/cl95qrqk</a><br/>Synced 7 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)"
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    },
+-    {
+-     "data": {
+-      "text/html": [
+-       "Find logs at: <code>./wandb/run-20230412_183404-cl95qrqk/logs</code>"
+-      ],
+-      "text/plain": [
+-       "<IPython.core.display.HTML object>"
+-      ]
+-     },
+-     "metadata": {},
+-     "output_type": "display_data"
+-    }
+-   ],
++   "outputs": [],
+    "source": [
+     "run.finish()"
+    ]
+   },
+   {
+    "cell_type": "markdown",
+-   "id": "13f82b21",
++   "id": "bd645e47",
+    "metadata": {},
+    "source": [
+     "7. Save the notebook."
+@@ -878,7 +425,7 @@
+    "name": "python",
+    "nbconvert_exporter": "python",
+    "pygments_lexer": "ipython3",
+-   "version": "3.9.15"
++   "version": "3.8.18"
+   }
+  },
+  "nbformat": 4,
+diff --git a/src/train_random_forest/MLproject b/src/train_random_forest/MLproject
+index 3d4ae2f..b455a2b 100644
+--- a/src/train_random_forest/MLproject
++++ b/src/train_random_forest/MLproject
+@@ -1,46 +1,46 @@
+-name: download_file
+-conda_env: conda.yml
+-
+-entry_points:
+-  main:
+-    parameters:
+-
+-      trainval_artifact:
+-        description: Train dataset
+-        type: string
+-
+-      val_size:
+-        description: Size of the validation split. Fraction of the dataset, or number of items
+-        type: string
+-
+-      random_seed:
+-        description: Seed for the random number generator. Use this for reproducibility
+-        type: string
+-        default: 42
+-
+-      stratify_by:
+-        description: Column to use for stratification (if any)
+-        type: string
+-        default: 'none'
+-
+-      rf_config:
+-        description: Random forest configuration. A path to a JSON file with the configuration that will
+-                     be passed to the scikit-learn constructor for RandomForestRegressor.
+-        type: string
+-
+-      max_tfidf_features:
+-        description: Maximum number of words to consider for the TFIDF
+-        type: string
+-
+-      output_artifact:
+-        description: Name for the output artifact
+-        type: string
+-
+-    command: >-
+-      python run.py --trainval_artifact {trainval_artifact} \
+-                    --val_size {val_size} \
+-                    --random_seed {random_seed} \
+-                    --stratify_by {stratify_by} \
+-                    --rf_config {rf_config} \
+-                    --max_tfidf_features {max_tfidf_features} \
+-                    --output_artifact {output_artifact}
++name: download_file
++conda_env: conda.yml
++
++entry_points:
++  main:
++    parameters:
++
++      trainval_artifact:
++        description: Train dataset
++        type: string
++
++      val_size:
++        description: Size of the validation split. Fraction of the dataset, or number of items
++        type: string
++
++      random_seed:
++        description: Seed for the random number generator. Use this for reproducibility
++        type: string
++        default: 42
++
++      stratify_by:
++        description: Column to use for stratification (if any)
++        type: string
++        default: 'none'
++
++      rf_config:
++        description: Random forest configuration. A path to a JSON file with the configuration that will
++                     be passed to the scikit-learn constructor for RandomForestRegressor.
++        type: string
++
++      max_tfidf_features:
++        description: Maximum number of words to consider for the TFIDF
++        type: string
++
++      output_artifact:
++        description: Name for the output artifact
++        type: string
++
++    command: >-
++      python run.py --trainval_artifact {trainval_artifact} \
++                    --val_size {val_size} \
++                    --random_seed {random_seed} \
++                    --stratify_by {stratify_by} \
++                    --rf_config {rf_config} \
++                    --max_tfidf_features {max_tfidf_features} \
++                    --output_artifact {output_artifact}
+diff --git a/src/train_random_forest/conda.yml b/src/train_random_forest/conda.yml
+index 2335152..b0c98d0 100644
+--- a/src/train_random_forest/conda.yml
++++ b/src/train_random_forest/conda.yml
+@@ -1,13 +1,13 @@
+-name: basic_cleaning
+-channels:
+-  - conda-forge
+-  - defaults
+-dependencies:
+-  - pandas=1.1.4
+-  - pip=20.3.3
+-  - mlflow=2.1.1
+-  - scikit-learn=0.24.1
+-  - matplotlib=3.6.2
+-  - pillow=8.1.2
+-  - pip:
+-      - wandb==0.13.9
++name: basic_cleaning
++channels:
++  - conda-forge
++  - defaults
++dependencies:
++  - pandas=1.1.4
++  - pip=20.3.3
++  - mlflow=2.1.1
++  - scikit-learn=0.24.1
++  - matplotlib=3.6.2
++  - pillow=8.1.2
++  - pip:
++      - wandb==0.13.9
+diff --git a/src/train_random_forest/feature_engineering.py b/src/train_random_forest/feature_engineering.py
+index d4a1c73..8686be1 100644
+--- a/src/train_random_forest/feature_engineering.py
++++ b/src/train_random_forest/feature_engineering.py
+@@ -1,11 +1,11 @@
+-import pandas as pd
+-import numpy as np
+-
+-
+-def delta_date_feature(dates):
+-    """
+-    Given a 2d array containing dates (in any format recognized by pd.to_datetime), it returns the delta in days
+-    between each date and the most recent date in its column
+-    """
+-    date_sanitized = pd.DataFrame(dates).apply(pd.to_datetime)
+-    return date_sanitized.apply(lambda d: (d.max() -d).dt.days, axis=0).to_numpy()
++import pandas as pd
++import numpy as np
++
++
++def delta_date_feature(dates):
++    """
++    Given a 2d array containing dates (in any format recognized by pd.to_datetime), it returns the delta in days
++    between each date and the most recent date in its column
++    """
++    date_sanitized = pd.DataFrame(dates).apply(pd.to_datetime)
++    return date_sanitized.apply(lambda d: (d.max() -d).dt.days, axis=0).to_numpy()
+diff --git a/src/train_random_forest/run.py b/src/train_random_forest/run.py
+index cc35d9b..bcdb270 100644
+--- a/src/train_random_forest/run.py
++++ b/src/train_random_forest/run.py
+@@ -1,293 +1,300 @@
+-#!/usr/bin/env python
+-"""
+-This script trains a Random Forest
+-"""
+-import argparse
+-import logging
+-import os
+-import shutil
+-import matplotlib.pyplot as plt
+-
+-import mlflow
+-import json
+-
+-import pandas as pd
+-import numpy as np
+-from sklearn.compose import ColumnTransformer
+-from sklearn.feature_extraction.text import TfidfVectorizer
+-from sklearn.impute import SimpleImputer
+-from sklearn.model_selection import train_test_split
+-from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder, FunctionTransformer
+-
+-import wandb
+-from sklearn.ensemble import RandomForestRegressor
+-from sklearn.metrics import mean_absolute_error
+-from sklearn.pipeline import Pipeline, make_pipeline
+-
+-
+-def delta_date_feature(dates):
+-    """
+-    Given a 2d array containing dates (in any format recognized by pd.to_datetime), it returns the delta in days
+-    between each date and the most recent date in its column
+-    """
+-    date_sanitized = pd.DataFrame(dates).apply(pd.to_datetime)
+-    return date_sanitized.apply(lambda d: (d.max() -d).dt.days, axis=0).to_numpy()
+-
+-
+-logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
+-logger = logging.getLogger()
+-
+-
+-def go(args):
+-
+-    run = wandb.init(job_type="train_random_forest")
+-    run.config.update(args)
+-
+-    # Get the Random Forest configuration and update W&B
+-    with open(args.rf_config) as fp:
+-        rf_config = json.load(fp)
+-    run.config.update(rf_config)
+-
+-    # Fix the random seed for the Random Forest, so we get reproducible results
+-    rf_config['random_state'] = args.random_seed
+-
+-    # Use run.use_artifact(...).file() to get the train and validation artifact
+-    # and save the returned path in train_local_pat
+-    trainval_local_path = run.use_artifact(args.trainval_artifact).file()
+-   
+-    X = pd.read_csv(trainval_local_path)
+-    y = X.pop("price")  # this removes the column "price" from X and puts it into y
+-
+-    logger.info(f"Minimum price: {y.min()}, Maximum price: {y.max()}")
+-
+-    X_train, X_val, y_train, y_val = train_test_split(
+-        X, y, test_size=args.val_size, stratify=X[args.stratify_by], random_state=args.random_seed
+-    )
+-
+-    logger.info("Preparing sklearn pipeline")
+-
+-    sk_pipe, processed_features = get_inference_pipeline(rf_config, args.max_tfidf_features)
+-
+-    # Then fit it to the X_train, y_train data
+-    logger.info("Fitting")
+-
+-    ######################################
+-    # Fit the pipeline sk_pipe by calling the .fit method on X_train and y_train
+-    # YOUR CODE HERE
+-    ######################################
+-
+-    # Compute r2 and MAE
+-    logger.info("Scoring")
+-    r_squared = sk_pipe.score(X_val, y_val)
+-
+-    y_pred = sk_pipe.predict(X_val)
+-    mae = mean_absolute_error(y_val, y_pred)
+-
+-    logger.info(f"Score: {r_squared}")
+-    logger.info(f"MAE: {mae}")
+-
+-    logger.info("Exporting model")
+-
+-    # Save model package in the MLFlow sklearn format
+-    if os.path.exists("random_forest_dir"):
+-        shutil.rmtree("random_forest_dir")
+-
+-    ######################################
+-    # Save the sk_pipe pipeline as a mlflow.sklearn model in the directory "random_forest_dir"
+-    # HINT: use mlflow.sklearn.save_model
+-    signature = mlflow.models.infer_signature(X_val, y_pred)
+-    mlflow.sklearn.save_model(
+-        # YOUR CODE HERE
+-        signature = signature,
+-        input_example = X_train.iloc[:5]
+-    )
+-    ######################################
+-
+-
+-    # Upload the model we just exported to W&B
+-    artifact = wandb.Artifact(
+-        args.output_artifact,
+-        type = 'model_export',
+-        description = 'Trained ranfom forest artifact',
+-        metadata = rf_config
+-    )
+-    artifact.add_dir('random_forest_dir')
+-    run.log_artifact(artifact)
+-
+-    # Plot feature importance
+-    fig_feat_imp = plot_feature_importance(sk_pipe, processed_features)
+-
+-    ######################################
+-    # Here we save variable r_squared under the "r2" key
+-    run.summary['r2'] = r_squared
+-    # Now save the variable mae under the key "mae".
+-    # YOUR CODE HERE
+-    ######################################
+-
+-    # Upload to W&B the feture importance visualization
+-    run.log(
+-        {
+-          "feature_importance": wandb.Image(fig_feat_imp),
+-        }
+-    )
+-
+-
+-def plot_feature_importance(pipe, feat_names):
+-    # We collect the feature importance for all non-nlp features first
+-    feat_imp = pipe["random_forest"].feature_importances_[: len(feat_names)-1]
+-    # For the NLP feature we sum across all the TF-IDF dimensions into a global
+-    # NLP importance
+-    nlp_importance = sum(pipe["random_forest"].feature_importances_[len(feat_names) - 1:])
+-    feat_imp = np.append(feat_imp, nlp_importance)
+-    fig_feat_imp, sub_feat_imp = plt.subplots(figsize=(10, 10))
+-    # idx = np.argsort(feat_imp)[::-1]
+-    sub_feat_imp.bar(range(feat_imp.shape[0]), feat_imp, color="r", align="center")
+-    _ = sub_feat_imp.set_xticks(range(feat_imp.shape[0]))
+-    _ = sub_feat_imp.set_xticklabels(np.array(feat_names), rotation=90)
+-    fig_feat_imp.tight_layout()
+-    return fig_feat_imp
+-
+-
+-def get_inference_pipeline(rf_config, max_tfidf_features):
+-    # Let's handle the categorical features first
+-    # Ordinal categorical are categorical values for which the order is meaningful, for example
+-    # for room type: 'Entire home/apt' > 'Private room' > 'Shared room'
+-    ordinal_categorical = ["room_type"]
+-    non_ordinal_categorical = ["neighbourhood_group"]
+-    # NOTE: we do not need to impute room_type because the type of the room
+-    # is mandatory on the websites, so missing values are not possible in production
+-    # (nor during training). That is not true for neighbourhood_group
+-    ordinal_categorical_preproc = OrdinalEncoder()
+-
+-    ######################################
+-    # Build a pipeline with two steps:
+-    # 1 - A SimpleImputer(strategy="most_frequent") to impute missing values
+-    # 2 - A OneHotEncoder() step to encode the variable
+-    non_ordinal_categorical_preproc = make_pipeline(
+-        # YOUR CODE HERE
+-    )
+-    ######################################
+-
+-    # Let's impute the numerical columns to make sure we can handle missing values
+-    # (note that we do not scale because the RF algorithm does not need that)
+-    zero_imputed = [
+-        "minimum_nights",
+-        "number_of_reviews",
+-        "reviews_per_month",
+-        "calculated_host_listings_count",
+-        "availability_365",
+-        "longitude",
+-        "latitude"
+-    ]
+-    zero_imputer = SimpleImputer(strategy="constant", fill_value=0)
+-
+-    # A MINIMAL FEATURE ENGINEERING step:
+-    # we create a feature that represents the number of days passed since the last review
+-    # First we impute the missing review date with an old date (because there hasn't been
+-    # a review for a long time), and then we create a new feature from it,
+-    date_imputer = make_pipeline(
+-        SimpleImputer(strategy='constant', fill_value='2010-01-01'),
+-        FunctionTransformer(delta_date_feature, check_inverse=False, validate=False)
+-    )
+-
+-    # Some minimal NLP for the "name" column
+-    reshape_to_1d = FunctionTransformer(np.reshape, kw_args={"newshape": -1})
+-    name_tfidf = make_pipeline(
+-        SimpleImputer(strategy="constant", fill_value=""),
+-        reshape_to_1d,
+-        TfidfVectorizer(
+-            binary=False,
+-            max_features=max_tfidf_features,
+-            stop_words='english'
+-        ),
+-    )
+-
+-    # Let's put everything together
+-    preprocessor = ColumnTransformer(
+-        transformers=[
+-            ("ordinal_cat", ordinal_categorical_preproc, ordinal_categorical),
+-            ("non_ordinal_cat", non_ordinal_categorical_preproc, non_ordinal_categorical),
+-            ("impute_zero", zero_imputer, zero_imputed),
+-            ("transform_date", date_imputer, ["last_review"]),
+-            ("transform_name", name_tfidf, ["name"])
+-        ],
+-        remainder="drop",  # This drops the columns that we do not transform
+-    )
+-
+-    processed_features = ordinal_categorical + non_ordinal_categorical + zero_imputed + ["last_review", "name"]
+-
+-    # Create random forest
+-    random_forest = RandomForestRegressor(**rf_config)
+-
+-    ######################################
+-    # Create the inference pipeline. The pipeline must have 2 steps: 
+-    # 1 - a step called "preprocessor" applying the ColumnTransformer instance that we saved in the `preprocessor` variable
+-    # 2 - a step called "random_forest" with the random forest instance that we just saved in the `random_forest` variable.
+-    # HINT: Use the explicit Pipeline constructor so you can assign the names to the steps, do not use make_pipeline
+-
+-    sk_pipe = Pipeline(
+-        steps =[
+-        # YOUR CODE HERE
+-        ]
+-    )
+-
+-    return sk_pipe, processed_features
+-    ######################################
+-
+-
+-if __name__ == "__main__":
+-
+-    parser = argparse.ArgumentParser(description="Basic cleaning of dataset")
+-
+-    parser.add_argument(
+-        "--trainval_artifact",
+-        type=str,
+-        help="Artifact containing the training dataset. It will be split into train and validation"
+-    )
+-
+-    parser.add_argument(
+-        "--val_size",
+-        type=float,
+-        help="Size of the validation split. Fraction of the dataset, or number of items",
+-    )
+-
+-    parser.add_argument(
+-        "--random_seed",
+-        type=int,
+-        help="Seed for random number generator",
+-        default=42,
+-        required=False,
+-    )
+-
+-    parser.add_argument(
+-        "--stratify_by",
+-        type=str,
+-        help="Column to use for stratification",
+-        default="none",
+-        required=False,
+-    )
+-
+-    parser.add_argument(
+-        "--rf_config",
+-        help="Random forest configuration. A JSON dict that will be passed to the "
+-        "scikit-learn constructor for RandomForestRegressor.",
+-        default="{}",
+-    )
+-
+-    parser.add_argument(
+-        "--max_tfidf_features",
+-        help="Maximum number of words to consider for the TFIDF",
+-        default=10,
+-        type=int
+-    )
+-
+-    parser.add_argument(
+-        "--output_artifact",
+-        type=str,
+-        help="Name for the output serialized model",
+-        required=True,
+-    )
+-
+-    args = parser.parse_args()
+-
+-    go(args)
++#!/usr/bin/env python
++"""
++This script trains a Random Forest
++"""
++import argparse
++import logging
++import os
++import shutil
++import matplotlib.pyplot as plt
++
++import mlflow
++import json
++
++import pandas as pd
++import numpy as np
++from sklearn.compose import ColumnTransformer
++from sklearn.feature_extraction.text import TfidfVectorizer
++from sklearn.impute import SimpleImputer
++from sklearn.model_selection import train_test_split
++from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder, FunctionTransformer
++
++import wandb
++from sklearn.ensemble import RandomForestRegressor
++from sklearn.metrics import mean_absolute_error
++from sklearn.pipeline import Pipeline, make_pipeline
++
++
++def delta_date_feature(dates):
++    """
++    Given a 2d array containing dates (in any format recognized by pd.to_datetime), it returns the delta in days
++    between each date and the most recent date in its column
++    """
++    date_sanitized = pd.DataFrame(dates).apply(pd.to_datetime)
++    return date_sanitized.apply(lambda d: (d.max() -d).dt.days, axis=0).to_numpy()
++
++
++logging.basicConfig(level=logging.INFO, format="%(asctime)-15s %(message)s")
++logger = logging.getLogger()
++
++
++def go(args):
++
++    run = wandb.init(job_type="train_random_forest")
++    run.config.update(args)
++
++    # Get the Random Forest configuration and update W&B
++    with open(args.rf_config) as fp:
++        rf_config = json.load(fp)
++    run.config.update(rf_config)
++
++    # Fix the random seed for the Random Forest, so we get reproducible results
++    rf_config['random_state'] = args.random_seed
++
++    # Use run.use_artifact(...).file() to get the train and validation artifact
++    # and save the returned path in train_local_pat
++    trainval_local_path = run.use_artifact(args.trainval_artifact).file()
++   
++    X = pd.read_csv(trainval_local_path)
++    y = X.pop("price")  # this removes the column "price" from X and puts it into y
++
++    logger.info(f"Minimum price: {y.min()}, Maximum price: {y.max()}")
++
++    X_train, X_val, y_train, y_val = train_test_split(
++        X, y, test_size=args.val_size, stratify=X[args.stratify_by], random_state=args.random_seed
++    )
++
++    logger.info("Preparing sklearn pipeline")
++
++    sk_pipe, processed_features = get_inference_pipeline(rf_config, args.max_tfidf_features)
++
++    # Then fit it to the X_train, y_train data
++    logger.info("Fitting")
++
++    ######################################
++    # Fit the pipeline sk_pipe by calling the .fit method on X_train and y_train
++    sk_pipe.fit(X_train, y_train)
++    ######################################
++
++    # Compute r2 and MAE
++    logger.info("Scoring")
++    r_squared = sk_pipe.score(X_val, y_val)
++
++    y_pred = sk_pipe.predict(X_val)
++    mae = mean_absolute_error(y_val, y_pred)
++
++    logger.info(f"Score: {r_squared}")
++    logger.info(f"MAE: {mae}")
++
++    logger.info("Exporting model")
++
++    # Save model package in the MLFlow sklearn format
++    if os.path.exists("random_forest_dir"):
++        shutil.rmtree("random_forest_dir")
++
++    ######################################
++    # Save the sk_pipe pipeline as a mlflow.sklearn model in the directory "random_forest_dir"
++    # HINT: use mlflow.sklearn.save_model
++    signature = mlflow.models.infer_signature(X_val, y_pred)
++    mlflow.sklearn.save_model(
++        # YOUR CODE HERE
++        sk_pipe,
++        path="random_forest_dir",
++        signature = signature,
++        input_example = X_train.iloc[:5]
++    )
++    ######################################
++
++
++    # Upload the model we just exported to W&B
++    artifact = wandb.Artifact(
++        args.output_artifact,
++        type = 'model_export',
++        description = 'Trained ranfom forest artifact',
++        metadata = rf_config
++    )
++    artifact.add_dir('random_forest_dir')
++    run.log_artifact(artifact)
++
++    # Plot feature importance
++    fig_feat_imp = plot_feature_importance(sk_pipe, processed_features)
++
++    ######################################
++    # Here we save variable r_squared under the "r2" key
++    run.summary['r2'] = r_squared
++    # Now save the variable mae under the key "mae".
++    # YOUR CODE HERE
++    run.summary['mae'] = mae
++    ######################################
++
++    # Upload to W&B the feture importance visualization
++    run.log(
++        {
++          "feature_importance": wandb.Image(fig_feat_imp),
++        }
++    )
++
++
++def plot_feature_importance(pipe, feat_names):
++    # We collect the feature importance for all non-nlp features first
++    feat_imp = pipe["random_forest"].feature_importances_[: len(feat_names)-1]
++    # For the NLP feature we sum across all the TF-IDF dimensions into a global
++    # NLP importance
++    nlp_importance = sum(pipe["random_forest"].feature_importances_[len(feat_names) - 1:])
++    feat_imp = np.append(feat_imp, nlp_importance)
++    fig_feat_imp, sub_feat_imp = plt.subplots(figsize=(10, 10))
++    # idx = np.argsort(feat_imp)[::-1]
++    sub_feat_imp.bar(range(feat_imp.shape[0]), feat_imp, color="r", align="center")
++    _ = sub_feat_imp.set_xticks(range(feat_imp.shape[0]))
++    _ = sub_feat_imp.set_xticklabels(np.array(feat_names), rotation=90)
++    fig_feat_imp.tight_layout()
++    return fig_feat_imp
++
++
++def get_inference_pipeline(rf_config, max_tfidf_features):
++    # Let's handle the categorical features first
++    # Ordinal categorical are categorical values for which the order is meaningful, for example
++    # for room type: 'Entire home/apt' > 'Private room' > 'Shared room'
++    ordinal_categorical = ["room_type"]
++    non_ordinal_categorical = ["neighbourhood_group"]
++    # NOTE: we do not need to impute room_type because the type of the room
++    # is mandatory on the websites, so missing values are not possible in production
++    # (nor during training). That is not true for neighbourhood_group
++    ordinal_categorical_preproc = OrdinalEncoder()
++
++    ######################################
++    # Build a pipeline with two steps:
++    # 1 - A SimpleImputer(strategy="most_frequent") to impute missing values
++    # 2 - A OneHotEncoder() step to encode the variable
++    non_ordinal_categorical_preproc = make_pipeline(
++        # YOUR CODE HERE
++        SimpleImputer(strategy="most_frequent"),
++        OneHotEncoder()
++    )
++    ######################################
++
++    # Let's impute the numerical columns to make sure we can handle missing values
++    # (note that we do not scale because the RF algorithm does not need that)
++    zero_imputed = [
++        "minimum_nights",
++        "number_of_reviews",
++        "reviews_per_month",
++        "calculated_host_listings_count",
++        "availability_365",
++        "longitude",
++        "latitude"
++    ]
++    zero_imputer = SimpleImputer(strategy="constant", fill_value=0)
++
++    # A MINIMAL FEATURE ENGINEERING step:
++    # we create a feature that represents the number of days passed since the last review
++    # First we impute the missing review date with an old date (because there hasn't been
++    # a review for a long time), and then we create a new feature from it,
++    date_imputer = make_pipeline(
++        SimpleImputer(strategy='constant', fill_value='2010-01-01'),
++        FunctionTransformer(delta_date_feature, check_inverse=False, validate=False)
++    )
++
++    # Some minimal NLP for the "name" column
++    reshape_to_1d = FunctionTransformer(np.reshape, kw_args={"newshape": -1})
++    name_tfidf = make_pipeline(
++        SimpleImputer(strategy="constant", fill_value=""),
++        reshape_to_1d,
++        TfidfVectorizer(
++            binary=False,
++            max_features=max_tfidf_features,
++            stop_words='english'
++        ),
++    )
++
++    # Let's put everything together
++    preprocessor = ColumnTransformer(
++        transformers=[
++            ("ordinal_cat", ordinal_categorical_preproc, ordinal_categorical),
++            ("non_ordinal_cat", non_ordinal_categorical_preproc, non_ordinal_categorical),
++            ("impute_zero", zero_imputer, zero_imputed),
++            ("transform_date", date_imputer, ["last_review"]),
++            ("transform_name", name_tfidf, ["name"])
++        ],
++        remainder="drop",  # This drops the columns that we do not transform
++    )
++
++    processed_features = ordinal_categorical + non_ordinal_categorical + zero_imputed + ["last_review", "name"]
++
++    # Create random forest
++    random_forest = RandomForestRegressor(**rf_config)
++
++    ######################################
++    # Create the inference pipeline. The pipeline must have 2 steps: 
++    # 1 - a step called "preprocessor" applying the ColumnTransformer instance that we saved in the `preprocessor` variable
++    # 2 - a step called "random_forest" with the random forest instance that we just saved in the `random_forest` variable.
++    # HINT: Use the explicit Pipeline constructor so you can assign the names to the steps, do not use make_pipeline
++
++    sk_pipe = Pipeline(
++        steps =[
++        # YOUR CODE HERE
++        ("preprocessor", preprocessor),
++        ("random_forest", random_forest) 
++        ]
++    )
++
++    return sk_pipe, processed_features
++    ######################################
++
++
++if __name__ == "__main__":
++
++    parser = argparse.ArgumentParser(description="Basic cleaning of dataset")
++
++    parser.add_argument(
++        "--trainval_artifact",
++        type=str,
++        help="Artifact containing the training dataset. It will be split into train and validation"
++    )
++
++    parser.add_argument(
++        "--val_size",
++        type=float,
++        help="Size of the validation split. Fraction of the dataset, or number of items",
++    )
++
++    parser.add_argument(
++        "--random_seed",
++        type=int,
++        help="Seed for random number generator",
++        default=42,
++        required=False,
++    )
++
++    parser.add_argument(
++        "--stratify_by",
++        type=str,
++        help="Column to use for stratification",
++        default="none",
++        required=False,
++    )
++
++    parser.add_argument(
++        "--rf_config",
++        help="Random forest configuration. A JSON dict that will be passed to the "
++        "scikit-learn constructor for RandomForestRegressor.",
++        default="{}",
++    )
++
++    parser.add_argument(
++        "--max_tfidf_features",
++        help="Maximum number of words to consider for the TFIDF",
++        default=10,
++        type=int
++    )
++
++    parser.add_argument(
++        "--output_artifact",
++        type=str,
++        help="Name for the output serialized model",
++        required=True,
++    )
++
++    args = parser.parse_args()
++
++    go(args)

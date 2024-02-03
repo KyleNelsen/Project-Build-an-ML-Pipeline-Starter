@@ -1,0 +1,13 @@
+2024-02-02 12:30:13,353 INFO    MainThread:1713 [wandb_setup.py:_flush():68] Configure stats pid to 1713
+2024-02-02 12:30:13,353 INFO    MainThread:1713 [wandb_setup.py:_flush():68] Loading settings from /home/kyle/.config/wandb/settings
+2024-02-02 12:30:13,354 INFO    MainThread:1713 [wandb_setup.py:_flush():68] Loading settings from /mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/src/data_check/wandb/settings
+2024-02-02 12:30:13,354 INFO    MainThread:1713 [wandb_setup.py:_flush():68] Loading settings from environment variables: {'_require_service': 'True', 'run_group': 'development', 'project': 'nyc_airbnb'}
+2024-02-02 12:30:13,355 WARNING MainThread:1713 [wandb_setup.py:_flush():68] Could not save program above cwd: /mnt/f/WSL/conda_envs/Project-Build-an-ML-Pipeline-Starter/mlflow-af6473294b18f57ea960125076520147a7a4be59/bin/pytest
+2024-02-02 12:30:13,355 INFO    MainThread:1713 [wandb_setup.py:_flush():68] Inferring run settings from compute environment: {'program_relpath': None, 'program': '/mnt/f/WSL/conda_envs/Project-Build-an-ML-Pipeline-Starter/mlflow-af6473294b18f57ea960125076520147a7a4be59/bin/pytest'}
+2024-02-02 12:30:13,356 INFO    MainThread:1713 [wandb_init.py:_log_setup():478] Logging user logs to /mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/src/data_check/wandb/run-20240202_123013-bdznzv9k/logs/debug.log
+2024-02-02 12:30:13,357 INFO    MainThread:1713 [wandb_init.py:_log_setup():479] Logging internal logs to /mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/src/data_check/wandb/run-20240202_123013-bdznzv9k/logs/debug-internal.log
+2024-02-02 12:30:13,359 INFO    MainThread:1713 [wandb_init.py:init():518] calling init triggers
+2024-02-02 12:30:13,359 INFO    MainThread:1713 [wandb_init.py:init():521] wandb.init called with sweep_config: {}
+config: {}
+2024-02-02 12:30:13,361 INFO    MainThread:1713 [wandb_init.py:init():566] wandb.init() called when a run is still active
+2024-02-02 12:30:32,297 WARNING MsgRouterThr:1713 [router.py:message_loop():77] message_loop has been closed

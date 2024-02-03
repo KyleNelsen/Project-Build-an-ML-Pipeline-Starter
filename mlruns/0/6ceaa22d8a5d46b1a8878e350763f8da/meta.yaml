@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/6ceaa22d8a5d46b1a8878e350763f8da/artifacts
+end_time: 1706904595271
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 6ceaa22d8a5d46b1a8878e350763f8da
+run_name: beautiful-shrimp-516
+run_uuid: 6ceaa22d8a5d46b1a8878e350763f8da
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706904042312
+status: 3
+tags: []
+user_id: kyle

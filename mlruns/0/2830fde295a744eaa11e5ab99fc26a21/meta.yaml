@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/2830fde295a744eaa11e5ab99fc26a21/artifacts
+end_time: 1707013348337
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 2830fde295a744eaa11e5ab99fc26a21
+run_name: worried-calf-379
+run_uuid: 2830fde295a744eaa11e5ab99fc26a21
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1707013003503
+status: 4
+tags: []
+user_id: kyle

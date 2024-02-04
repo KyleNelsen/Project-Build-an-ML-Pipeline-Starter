@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/718cf838dbbc40bf8cfc52a5bf5bfa78/artifacts
+end_time: 1707015660552
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 718cf838dbbc40bf8cfc52a5bf5bfa78
+run_name: sedate-elk-685
+run_uuid: 718cf838dbbc40bf8cfc52a5bf5bfa78
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1707015542292
+status: 3
+tags: []
+user_id: kyle

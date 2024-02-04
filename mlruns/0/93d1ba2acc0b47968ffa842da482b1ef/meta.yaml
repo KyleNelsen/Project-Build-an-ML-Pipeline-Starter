@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/93d1ba2acc0b47968ffa842da482b1ef/artifacts
+end_time: 1707014930074
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 93d1ba2acc0b47968ffa842da482b1ef
+run_name: secretive-ant-884
+run_uuid: 93d1ba2acc0b47968ffa842da482b1ef
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1707014878645
+status: 4
+tags: []
+user_id: kyle

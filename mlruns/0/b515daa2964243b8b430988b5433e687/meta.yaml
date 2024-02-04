@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/b515daa2964243b8b430988b5433e687/artifacts
+end_time: 1707014838384
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: b515daa2964243b8b430988b5433e687
+run_name: skittish-carp-792
+run_uuid: b515daa2964243b8b430988b5433e687
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1707014788494
+status: 3
+tags: []
+user_id: kyle

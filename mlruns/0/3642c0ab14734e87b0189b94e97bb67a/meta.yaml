@@ -1,0 +1,15 @@
+artifact_uri: file:///mnt/f/WSL/Project-Build-an-ML-Pipeline-Starter/mlruns/0/3642c0ab14734e87b0189b94e97bb67a/artifacts
+end_time: 1707014878581
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 3642c0ab14734e87b0189b94e97bb67a
+run_name: learned-cow-180
+run_uuid: 3642c0ab14734e87b0189b94e97bb67a
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1707014838450
+status: 3
+tags: []
+user_id: kyle
